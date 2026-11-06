@@ -1,5 +1,11 @@
 # Matching Apple pthread kernel component
 
+Latest phone evidence, image0007: the protected pane identifies an AES data
+abort during TCP initialization. Its backtrace reaches domaininit/tcp_init,
+after the unconditional pthread_init call in this exact XNU. Return from
+pthread_init is therefore inferred from source call ordering; this is not
+a full pthread functional test or complete boot. See [AES.md](AES.md).
+
 The image 0005 photograph shows a kernel panic backtrace. Symbolication using
 the exact verified kernel and LR minus four yields pthread_init.cold.1+0x24,
 pthread_init+0x1c, bsd_init+0x48c and kernel_bootstrap_thread+0x4ac. The panic

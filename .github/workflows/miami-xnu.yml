@@ -54,8 +54,11 @@ jobs:
           git init -q "$RUNNER_TEMP/xnu-check/pthread"
           git -C "$RUNNER_TEMP/xnu-check/pthread" fetch -q --depth 1 https://github.com/apple-oss-distributions/libpthread.git a6c70ca0e544347a0377babf748f831577ec24f9
           git -C "$RUNNER_TEMP/xnu-check/pthread" checkout -q FETCH_HEAD
+          git init -q "$RUNNER_TEMP/xnu-check/bearssl"
+          git -C "$RUNNER_TEMP/xnu-check/bearssl" fetch -q --depth 1 https://github.com/status-im/BearSSL.git 7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
+          git -C "$RUNNER_TEMP/xnu-check/bearssl" checkout -q FETCH_HEAD
       - name: Validate target source edits and early console compilation
-        run: python3 miami/tests/check-source.py --source "$RUNNER_TEMP/xnu-check/xnu" --helper "$RUNNER_TEMP/xnu-check/helper" --pthread "$RUNNER_TEMP/xnu-check/pthread"
+        run: python3 miami/tests/check-source.py --source "$RUNNER_TEMP/xnu-check/xnu" --helper "$RUNNER_TEMP/xnu-check/helper" --pthread "$RUNNER_TEMP/xnu-check/pthread" --bearssl "$RUNNER_TEMP/xnu-check/bearssl"
 
   kernel:
     needs: validate
@@ -93,6 +96,10 @@ jobs:
           git -C dxb/pthread fetch -q --depth 1 https://github.com/apple-oss-distributions/libpthread.git a6c70ca0e544347a0377babf748f831577ec24f9
           git -C dxb/pthread checkout -q FETCH_HEAD
           test "$(git -C dxb/pthread rev-parse HEAD)" = a6c70ca0e544347a0377babf748f831577ec24f9
+          git init -q dxb/bearssl
+          git -C dxb/bearssl fetch -q --depth 1 https://github.com/status-im/BearSSL.git 7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
+          git -C dxb/bearssl checkout -q FETCH_HEAD
+          test "$(git -C dxb/bearssl rev-parse HEAD)" = 7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
           python3 miami/xnu/configure-helper.py dxb
           echo "MIAMI_PORT_ROOT=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
       - name: Build single-CPU MIAMI kernel
@@ -119,7 +126,11 @@ jobs:
           for symbol in _pthread_start _pthread_internal_functions __pthread_init __psynch_mutexwait _workq_setup_thread; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/pthread-verification.txt
           done
+          for symbol in _miami_aes_cbc_encrypt _miami_aes_cbc_decrypt _br_aes_ct_cbcenc_init _br_aes_ct_cbcenc_run _br_aes_ct_cbcdec_init _br_aes_ct_cbcdec_run; do
+            grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/aes-verification.txt
+          done
           cp "$KERNEL" out/
+          cp dxb/xnu/libkern/crypto/miami_bearssl/LICENSE.txt out/BearSSL-LICENSE.txt
           python3 miami/loader/payload.py "$KERNEL" out/payload.bin
           xcrun clang -O2 -Wall -Wextra -Werror -DMIAMI_PAYLOAD_ONLY miami/loader/verify-input.c miami/loader/plan.c -o "$RUNNER_TEMP/check-payload"
           "$RUNNER_TEMP/check-payload" out/payload.bin

@@ -1,5 +1,14 @@
 # Single-CPU XNU adaptation for miami
 
+Current phone milestone, image0007: the protected first-panic pane worked.
+It records Kernel data abort at aes_encrypt_key128+0x10, PCfffffe00078f6a88,
+ESR96000005,FAR78; exact code reads the NULL crypto table. The preceding TCP
+initialization proves pthread_init returned by source call ordering. The
+legacy AES provider adaptation and local NIST-vector checks are described
+in [AES.md](AES.md); full compile and next phone test remain pending.
+
+## Earlier bring-up history
+
 Latest verified build: [run 42239849041](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42239849041)
 passed every gate at `51c1948587595f336115c65f0abe5f8c2dc07862`, integrating the
 matching real Apple pthread kernel component. Independent artifact, symbol and

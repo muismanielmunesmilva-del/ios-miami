@@ -18,7 +18,12 @@ Image 0007 is 100,663,296 bytes, SHA-256
 Payload/live-FDT, Android/ARM64 headers, embedded kernel identity and official
 AVB verification passed. Temporary fastboot boot was accepted after verifying
 exact size/hash and one product `miami`: send 2.277s, boot 10.490s, exit 0.
-The phone's screen observation is pending; transport is not execution evidence.
+The later complete phone photograph confirms the protected pane survives the
+native report: `Kernel data abort.`, PC `0xfffffe00078f6a88`, LR
+`0xfffffe0007669f98`, ESR `0x96000005`, FAR `0x78`. The exact binary identifies
+`aes_encrypt_key128+0x10`, reading the NULL crypto-function table at offset120.
+Photo SHA-256: `b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df`.
+This is now phone evidence matching the prior host control. See [AES.md](AES.md).
 
 Image 0006's photograph matches the verified kernel UUID and shows a panic,
 but the reason and register lines have already been overwritten by the normal
@@ -26,7 +31,7 @@ console's ring. The user confirmed that these lines are not visible. The
 phone's panic cause remains unknown; the separate host AES abort is not proof
 of the phone's failure.
 
-The next diagnostic build reserves the top 18 text rows (576 pixels) only
+The diagnostic build reserves the top 18 text rows (576 pixels) only
 after the first panic. Normal serial output continues below them. It captures
 the valid 64-bit saved state at Apple's `panic_with_thread_kernel_state`
 before the existing native panic call: reason, PC, LR, ESR, FAR, SP and FP.

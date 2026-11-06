@@ -1,5 +1,13 @@
 # MIAMI: initial XNU build for Motorola Edge 30 Neo
 
+Current status: the complete image0007 phone photo identifies the same AES
+data abort seen in the host control, after pthread initialization. The first
+panic reason/register pane worked on hardware. The legacy AES-CBC/ECB provider
+adaptation passes local known-answer tests; its complete build and next phone
+test are pending. See [AES.md](AES.md) and [PANIC-SCREEN.md](PANIC-SCREEN.md).
+
+## Earlier build history
+
 This is a single-CPU adaptation based on ios-sweet. Probe V5 confirmed 16K
 translation and timer IRQs on the boot CPU. The full XNU kernel compiled,
 linked and passed payload validation in [the latest Intel-hosted Actions run](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42239849041)
@@ -91,7 +99,7 @@ For source checks, provide fresh checkouts of Apple XNU commit
 a6c70ca0e544347a0377babf748f831577ec24f9. This changes the XNU/helper checkouts:
 
 ```sh
-python3 miami/tests/check-source.py --source /path/to/fresh/xnu --helper /path/to/fresh/helper --pthread /path/to/pinned/libpthread
+python3 miami/tests/check-source.py --source /path/to/fresh/xnu --helper /path/to/fresh/helper --pthread /path/to/pinned/libpthread --bearssl /path/to/pinned/BearSSL
 ```
 
 Loader tests use a synthetic Mach-O and compile-only mode. Their output is

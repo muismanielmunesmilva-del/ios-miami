@@ -20,7 +20,7 @@ def run(*args):
     subprocess.run([str(x) for x in args], check=True)
 
 
-def check(source, helper, pthread):
+def check(source, helper, pthread, bearssl):
     run(sys.executable, ROOT / 'xnu/configure-helper.py', helper)
     configured = (helper / 'build.sh').read_text()
     assert configured.count('python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py"') == 1
@@ -49,8 +49,9 @@ def check(source, helper, pthread):
         subprocess.run(['bash', str(script)], check=True,
                        env={**os.environ, 'PATH': str(tools) + ':/usr/bin:/bin',
                             'DEVELOPER_DIR': str(developer)})
-    run(sys.executable, ROOT / 'xnu/prepare.py', source, '--pthread', pthread)
+    run(sys.executable, ROOT / 'xnu/prepare.py', source, '--pthread', pthread, '--bearssl', bearssl)
     run(sys.executable, ROOT / 'tests/check-panic.py', source)
+    run(sys.executable, ROOT / 'tests/check-aes.py', source)
     shims = (source / 'bsd/pthread/pthread_shims.c').read_text()
     assert 'panic("pthread kernel extension not loaded (function table is NULL).");' in shims
     assert 'MIAMI PTHREAD: kernel initialization complete' in shims
@@ -109,5 +110,6 @@ if __name__ == '__main__':
     parser.add_argument('--source', required=True, type=Path)
     parser.add_argument('--helper', required=True, type=Path)
     parser.add_argument('--pthread', required=True, type=Path)
+    parser.add_argument('--bearssl', required=True, type=Path)
     args = parser.parse_args()
-    check(args.source.resolve(), args.helper.resolve(), args.pthread.resolve())
+    check(args.source.resolve(), args.helper.resolve(), args.pthread.resolve(), args.bearssl.resolve())

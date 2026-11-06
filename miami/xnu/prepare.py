@@ -12,6 +12,7 @@ import subprocess
 import mkadt
 import pthread_component
 import panic_screen
+import aes_component
 
 APPLE_COMMIT = '1b191cb58250d0705d8a51287127505aa4bc0789'
 PORT = Path(__file__).resolve().parents[2]
@@ -43,7 +44,7 @@ def section(tree, path, begin, end, replacement):
     edit(tree, path, text[first:last], replacement)
 
 
-def prepare(tree, pthread_source):
+def prepare(tree, pthread_source, bearssl_source):
     tree = tree.resolve()
     manifest = tree.parent / 'miami-source.json'
     if manifest.exists():
@@ -184,6 +185,7 @@ miami_early_configure(uint64_t base, uint64_t row_bytes)
     for target, text in CACHE.items():
         target.write_bytes(text.encode('utf-8'))
     result['pthread'] = pthread_component.stage(tree, pthread_source)
+    result['legacy_aes'] = aes_component.stage(tree, bearssl_source)
     manifest.write_text(json.dumps(result, indent=2) + '\n')
     print(f'MIAMI: {len(applied)} required patches and target edits staged; MAX_CPUS=1')
 
@@ -192,5 +194,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('apple_tree', type=Path)
     parser.add_argument('--pthread', required=True, type=Path)
+    parser.add_argument('--bearssl', required=True, type=Path)
     args = parser.parse_args()
-    prepare(args.apple_tree, args.pthread.resolve())
+    prepare(args.apple_tree, args.pthread.resolve(), args.bearssl.resolve())
