@@ -5,9 +5,14 @@ kernel=${1:?Pass the compiled kernel.development.miami}
 libfdt=${2:?Pass the pinned dtc checkout}
 avbtool=${3:?Pass the official AOSP avbtool.py}
 live_fdt=${4:?Pass the private live miami FDT for host validation}
+ramdisk=${5:-}
 test "$(git -C "$libfdt" rev-parse HEAD)" = 54e547173bf0f2a4cc35eba8b5738caf38b9230f
 mkdir -p out
-python3 payload.py "$kernel" out/payload.bin
+if [ -n "$ramdisk" ]; then
+    python3 payload.py "$kernel" out/payload.bin --ramdisk "$ramdisk"
+else
+    python3 payload.py "$kernel" out/payload.bin
+fi
 gcc -O2 -Wall -Wextra -Werror -I"$libfdt/libfdt" verify-input.c plan.c ram.c ../probe/layout.c \
     "$libfdt/libfdt/fdt.c" "$libfdt/libfdt/fdt_ro.c" "$libfdt/libfdt/fdt_check.c" -o out/verify-input
 out/verify-input out/payload.bin "$live_fdt"
@@ -76,7 +81,7 @@ python3 "$avbtool" add_hash_footer --image out/boot.img --partition_name boot \
     --partition_size 100663296 --algorithm NONE --hash_algorithm sha256 \
     --salt 0000000000000000000000000000000000000000000000000000000000000000 \
     --prop com.android.build.boot.os_version:11.0.0 \
-    --prop com.android.build.boot.fingerprint:local/miami-xnu/miami:11/MIAMI_XNU/0004:eng/test-keys
+    --prop com.android.build.boot.fingerprint:local/miami-xnu/miami:11/MIAMI_XNU/0005:eng/test-keys
 python3 "$avbtool" verify_image --image out/boot.img
 sha256sum out/Image out/payload.bin out/boot.img
 echo 'Built a temporary image; no phone command has been issued.'

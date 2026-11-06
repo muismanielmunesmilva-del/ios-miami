@@ -52,6 +52,12 @@ def check(source, helper, pthread, bearssl):
     run(sys.executable, ROOT / 'xnu/prepare.py', source, '--pthread', pthread, '--bearssl', bearssl)
     run(sys.executable, ROOT / 'tests/check-panic.py', source)
     run(sys.executable, ROOT / 'tests/check-aes.py', source)
+    run(sys.executable, ROOT / 'tests/check-sha256.py', source)
+    assert 'fifo mockfs fs_compression' in (source / 'config/MASTER.arm64.miami').read_text()
+    nodes = (source / 'bsd/miscfs/mockfs/mockfs_fsnode.c').read_text()
+    assert '*fsnpp = kalloc_type(struct mockfs_fsnode,' in nodes
+    assert 'kfree_type(struct mockfs_fsnode, fsnp);' in nodes
+    assert 'memdev_info.mi_mdev && memdev_info.mi_phys' in (source / 'bsd/miscfs/mockfs/mockfs_vfsops.c').read_text()
     shims = (source / 'bsd/pthread/pthread_shims.c').read_text()
     assert 'panic("pthread kernel extension not loaded (function table is NULL).");' in shims
     assert 'MIAMI PTHREAD: kernel initialization complete' in shims

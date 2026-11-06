@@ -1,5 +1,5 @@
 {
-  "local_source_commit": "7d71a26",
+  "local_source_commit": "a5bf4076c34d6b5c69ae3b964d1ac26c7f579f45",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-06",
@@ -40,7 +40,7 @@
     "result": "Protected first panic visible: Kernel data abort in AES key128+0x10 PCfffffe00078f6a88 ESR96000005 FAR78. Exact instruction reads NULL crypto table.",
     "photo_sha256": "b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df"
   },
-  "next_dependency": "Implement and validate a bounded RAM-backed root and minimal userspace test. Current image has no root filesystem/storage driver. Preserve Android; old SWEET userdata authorization does not apply.",
+  "next_dependency": "Compile and verify RAM-root kernel/probe, prove EL0 PID1 and repeated heartbeats in host control, prepare next temporary image preserving Android.",
   "previous_verified_build": {
     "run_id": 42281662142,
     "source_commit": "988db79023cdce6805785bcc980b65a2adf07094",
@@ -65,5 +65,13 @@
     "partition_write_commands_issued": false,
     "ios_userland_included": false,
     "first_panic_photo_sha256": "b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df"
+  },
+  "source_adaptation_pending": {
+    "ram_root": "mockfs + bounded final payload segment / chosen memory-map RAMDisk, rd=md0",
+    "pid1": "small static signed plain-arm64 program; verifies getpid1, console heartbeat, no storage IO",
+    "local_checks": "passed: source/loader/liveFDT/signature/SHA25644cases/AES/console/workflow",
+    "full_kernel_build": "pending",
+    "next_image_prepared": false,
+    "physical_storage_driver_added": false
   }
 }

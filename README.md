@@ -12,6 +12,8 @@ The first-panic diagnostic passed the complete [Actions run 42281662142](https:/
 
 The portable legacy AES-CBC/ECB integration passed the complete [Actions run 42287672552](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42287672552) at `64c5ca35fabdfc6838192d07412ff486ab6fc6b1`. Its 150-second host control now shows pthread initialization complete, Skywalk self-tests passed and waiting for an IOMedia/Apple_HFS root device, with no panic visible in the final snapshot. Exact artifact, six AES symbols, mode descriptors, license and table checks pass. Image 0008 was accepted by temporary fastboot boot after checking one product miami and exact image size/hash (send2.278s, boot4.011s, exit0); the subsequent phone photo directly shows pthread initialization complete, Skywalk self-tests passed and the IOMedia/Apple_HFS root-device wait, with no panic visible. The phone has progressed beyond the earlier AES fault. Root mounting and iOS userland remain absent. No root filesystem or storage driver is included. See [AES integration and evidence](miami/xnu/AES.md).
 
+The next adaptation adds a bounded RAM-only mockfs root and a small signed static first-process probe. Local checks pass for its signature, RAM handoff rejection paths, actual XNU SHA256 wrappers, preserved AES/pthread/console code and workflow syntax. Full kernel build/runtime evidence are pending. See [RAM-root design and checks](miami/xnu/RAM-ROOT.md).
+
 - [Build instructions](miami/xnu/README.md)
 - [Pthread matching, integration and results](miami/xnu/PTHREAD.md)
 - [Bring-up details](miami/xnu/BRINGUP.md)

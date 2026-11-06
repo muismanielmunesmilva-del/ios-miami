@@ -119,10 +119,10 @@ void probe_main(const void *fdt)
         trace_header = (volatile uint32_t *)(uintptr_t)layout.console;
         trace_bytes = (volatile uint8_t *)(uintptr_t)(layout.console + 12);
         trace_header[0] = trace_header[1] = trace_header[2] = 0;
-        message("MIAMI XNU loader 0004: before display\n");
+        message("MIAMI XNU loader 0005: before display\n");
     }
     screen_init(control);
-    message("MIAMI XNU loader 0004\n");
+    message("MIAMI XNU loader 0005\n");
     probe_hex("CurrentEL", el); probe_hex("SCTLR", control);
     probe_hex("IMAGE_BASE", (uintptr_t)_head);
     if (control & 0x1005) { message("Unexpected caches enabled; stopped\n"); return; }

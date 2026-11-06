@@ -12,6 +12,7 @@ on:
       - 'xnu/patches/**'
       - 'tools/adt.py'
       - 'tools/mkpayload.py'
+      - 'tools/mkinit.py'
       - 'shim/font.h'
       - '.github/workflows/miami-xnu.yml'
 
@@ -129,14 +130,18 @@ jobs:
           for symbol in _miami_aes_cbc_encrypt _miami_aes_cbc_decrypt _br_aes_ct_cbcenc_init _br_aes_ct_cbcenc_run _br_aes_ct_cbcdec_init _br_aes_ct_cbcdec_run; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/aes-verification.txt
           done
+          for symbol in _mockfs_mountroot _mockfs_fsnode_create _SHA256_Init _ccsha256_ltc_di; do
+            grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/ram-root-verification.txt
+          done
           cp "$KERNEL" out/
           cp dxb/xnu/libkern/crypto/miami_bearssl/LICENSE.txt out/BearSSL-LICENSE.txt
-          python3 miami/loader/payload.py "$KERNEL" out/payload.bin
+          python3 miami/userspace/build.py out/miami-init.macho > out/init-verification.json
+          python3 miami/loader/payload.py "$KERNEL" out/payload.bin --ramdisk out/miami-init.macho
           xcrun clang -O2 -Wall -Wextra -Werror -DMIAMI_PAYLOAD_ONLY miami/loader/verify-input.c miami/loader/plan.c -o "$RUNNER_TEMP/check-payload"
           "$RUNNER_TEMP/check-payload" out/payload.bin
           cp toolchain.txt dxb/miami-source.json out/
           git rev-parse HEAD > out/port-commit.txt
-          (cd out && shasum -a 256 kernel.development.miami payload.bin payload.adt > SHA256SUMS)
+          (cd out && shasum -a 256 kernel.development.miami payload.bin payload.adt miami-init.macho > SHA256SUMS)
       - name: Preserve source and generated headers after a build failure
         if: failure()
         run: |

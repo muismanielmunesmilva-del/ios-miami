@@ -33,15 +33,17 @@ struct adt_check {
     const uint8_t *data;
     uint64_t size, offset;
     unsigned nodes, fb_count, dram_base, dram_size, reg_count, stride_count, width_count, height_count;
+    unsigned chosen_count, mmap_count, rd_count;
+    uint64_t rd_pa, rd_size;
     struct miami_plan *plan;
 };
-static int adt_node(struct adt_check *c, unsigned depth)
+static int adt_node(struct adt_check *c, unsigned depth, int parent_chosen)
 {
     if (depth > 12 || ++c->nodes > 128 || !span(c->offset, 8, c->size)) return -1;
     uint32_t props = le(c->data + c->offset, 4), children = le(c->data + c->offset + 4, 4);
     c->offset += 8;
     if (!props || props > 128 || children > 64) return -1;
-    int fb = 0, chosen = 0;
+    int fb = 0, chosen = 0, mmap = 0;
     for (unsigned i = 0; i < props; ++i) {
         if (!span(c->offset, 36, c->size)) return -1;
         const uint8_t *key = c->data + c->offset;
@@ -56,7 +58,14 @@ static int adt_node(struct adt_check *c, unsigned depth)
             if (strcmp((const char *)key, "name") || !len || !memchr(value, 0, len)) return -1;
             fb = depth == 1 && !strcmp((const char *)value, "miami-fbcon");
             chosen = depth == 1 && !strcmp((const char *)value, "chosen");
+            mmap = depth == 2 && parent_chosen && !strcmp((const char *)value, "memory-map");
             c->fb_count += fb;
+            c->chosen_count += chosen;
+            c->mmap_count += mmap;
+        } else if (!strcmp((const char *)key, "RAMDisk")) {
+            if (!mmap || len != 16 || c->rd_count++) return -1;
+            c->rd_pa = le(value, 8);
+            c->rd_size = le(value + 8, 8);
         } else if (fb && !strcmp((const char *)key, "reg")) {
             if (len != 16 || c->reg_count++) return -1;
             c->plan->fb_reg_off = (uint32_t)c->offset;
@@ -74,8 +83,22 @@ static int adt_node(struct adt_check *c, unsigned depth)
         }
         c->offset += padded;
     }
-    for (unsigned i = 0; i < children; ++i) if (adt_node(c, depth + 1)) return -1;
+    for (unsigned i = 0; i < children; ++i) if (adt_node(c, depth + 1, chosen)) return -1;
     return 0;
+}
+static int root_arg(const char *s)
+{
+    int roots = 0;
+    while (*s) {
+        while (*s == ' ') ++s;
+        const char *start = s;
+        while (*s && *s != ' ') ++s;
+        size_t size = (size_t)(s - start);
+        if (size >= 3 && !memcmp(start, "rd=", 3)) {
+            if (size != 6 || memcmp(start, "rd=md0", 6) || roots++) return -1;
+        }
+    }
+    return roots;
 }
 int miami_payload_plan(const void *bytes, size_t size, struct miami_plan *out)
 {
@@ -107,9 +130,24 @@ int miami_payload_plan(const void *bytes, size_t size, struct miami_plan *out)
     if (!entry) return -7;
     struct adt_check c = { .data = (const uint8_t *)bytes + p->adt_off,
         .size = p->adt_size, .plan = out };
-    if (adt_node(&c, 0) || c.offset != c.size || c.fb_count != 1 || c.reg_count != 1 ||
+    if (adt_node(&c, 0, 0) || c.offset != c.size || c.fb_count != 1 || c.reg_count != 1 ||
         c.stride_count != 1 || c.width_count != 1 || c.height_count != 1 ||
-        c.dram_base != 1 || c.dram_size != 1) return -8;
+        c.dram_base != 1 || c.dram_size != 1 || c.chosen_count != 1 || c.mmap_count > 1) return -8;
+    if (root_arg(p->cmdline) != (int)c.rd_count) return -9;
+    if (c.rd_count) {
+        const struct miami_segment *s = &p->segs[p->nsegs - 1];
+        if (p->nsegs < 2 || c.mmap_count != 1 || !s->file_size ||
+            s->file_size > 0x10000 || s->file_size < MIAMI_PAGE ||
+            s->vmsize != ((s->file_size + MIAMI_PAGE - 1) & ~(MIAMI_PAGE - 1)) ||
+            c.rd_pa != MIAMI_RAM_BASE + s->vmaddr - p->virt_base ||
+            c.rd_size != s->vmsize || s->vmaddr + s->vmsize != p->kernel_end ||
+            p->entry_va >= s->vmaddr) return -10;
+        for (unsigned i = 0; i + 1 < p->nsegs; ++i)
+            if (p->segs[i].vmaddr + p->segs[i].vmsize > s->vmaddr) return -10;
+        const uint8_t *image = (const uint8_t *)bytes + s->file_off;
+        if (le(image, 4) != 0xfeedfacf || le(image + 4, 4) != 0x100000c ||
+            le(image + 8, 4) || le(image + 12, 4) != 2 || le(image + 16, 4) != 5) return -11;
+    }
     out->entry_pa = MIAMI_RAM_BASE + p->entry_va - p->virt_base;
     out->adt_pa = MIAMI_RAM_BASE + end;
     out->boot_args_pa = (out->adt_pa + p->adt_size + MIAMI_PAGE - 1) & ~(MIAMI_PAGE - 1);

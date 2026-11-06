@@ -18,6 +18,7 @@ sys.path[:0] = [str(PORT / 'miami/loader'), str(PORT / 'miami/xnu'), str(PORT / 
 import payload
 import mkadt
 import adt
+from userspace.build import build as build_init, validate as validate_init
 
 DTS = '''/dts-v1/;
 / { #address-cells=<2>; #size-cells=<2>;
@@ -108,6 +109,72 @@ def check(dtc, live_fdt=None):
             bad = bytearray(valid)
             struct.pack_into(fmt, bad, offset, value)
             assert not accepts(bad), (offset, fmt, value)
+        # Real signed EL0 probe appended after synthetic kernel segments. This
+        # exercises the actual C handoff validator; no phone or storage IO.
+        init = temp / 'miami-init.macho'
+        init_info = build_init(init)
+        root_payload = temp / 'ram-root.bin'
+        payload.package(kernel, root_payload, init)
+        rooted = root_payload.read_bytes()
+        assert accepts(rooted)
+        ao, az = struct.unpack_from('<2Q', rooted, 0x20)
+        assert root_payload.with_suffix('.adt').read_bytes() == rooted[ao:ao + az]
+        tree, _ = adt.parse(rooted[ao:ao + az])
+        chosen = next(c for c in tree.children if c.name == 'chosen')
+        mmap = next(c for c in chosen.children if c.name == 'memory-map')
+        rd = mmap.prop('RAMDisk')
+        rd_offset = rooted.index(b'RAMDisk' + bytes(25), ao) + 36
+        n = struct.unpack_from('<I', rooted, 12)[0]
+        last = 0x2a8 + (n - 1) * 32
+        va, size, fileoff, filesize = struct.unpack_from('<4Q', rooted, last)
+        assert rooted[fileoff:fileoff + filesize] == init.read_bytes()
+        assert filesize == init_info['bytes'] and struct.unpack('<2Q', rd)[1] == size == 0x8000
+        root_bad = [(rd_offset, '<Q', 0x85200000), (rd_offset + 8, '<Q', 0x4000),
+                    (rd_offset + 8, '<Q', 0x100000), (last + 24, '<Q', 0),
+                    (fileoff, '<I', 0), (fileoff + 4, '<I', 0x1000007),
+                    (0x18, '<Q', va), (0x30, '<Q', va + size + 0x4000)]
+        for offset, fmt, value in root_bad:
+            bad = bytearray(rooted); struct.pack_into(fmt, bad, offset, value)
+            assert not accepts(bad), ('RAM root', offset, value)
+        for old, new in [(b'rd=md0', b'rd=md1'), (b'rd=md0', b'xx=md0')]:
+            assert not accepts(rooted.replace(old, new))
+        duplicate_arg = bytearray(rooted)
+        line = (payload.CMDLINE + ' rd=md0 rd=md0').encode()
+        duplicate_arg[0x48:0x2a8] = line + bytes(608 - len(line))
+        assert not accepts(duplicate_arg)
+        def changed_adt(change):
+            t, _ = adt.parse(rooted[ao:ao + az])
+            ch = next(c for c in t.children if c.name == 'chosen')
+            mm = next(c for c in ch.children if c.name == 'memory-map')
+            change(ch, mm)
+            encoded = adt.serialize(t)
+            result = bytearray(rooted[:ao] + encoded)
+            struct.pack_into('<Q', result, 0x28, len(encoded))
+            result += bytes(-len(result) % 16)
+            return result
+        def duplicate(ch, mm):
+            mm.props.append(('RAMDisk', 0, rd))
+        def misplaced(ch, mm):
+            mm.props = [p for p in mm.props if p[0] != 'RAMDisk']
+            ch.props.append(('RAMDisk', 0, rd))
+        assert not accepts(changed_adt(duplicate))
+        assert not accepts(changed_adt(misplaced))
+        assert not accepts(valid[:0x48] + valid[0x48:].replace(b'debug=0xc', b'rd=md0   ', 1))
+        damaged = bytearray(init.read_bytes()); damaged[1024] ^= 1
+        try:
+            validate_init(damaged)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('PID1 signed code corruption accepted')
+        damaged[1024] ^= 1
+        damaged[8] = 2  # arm64e is not executable on this boot CPU.
+        try:
+            validate_init(damaged)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('arm64e PID1 accepted')
         ctf_kernel = temp / 'SYNTHETIC-CTF-NOT-XNU.macho'
         ctf_kernel.write_bytes(fixture_ctf())
         ctf_payload = temp / 'ctf.bin'
@@ -150,7 +217,7 @@ def check(dtc, live_fdt=None):
         kernel.write_bytes(fixture_kernel(0x204000))
         run('bash', PORT / 'miami/loader/build.sh', kernel, dtc, '/not-used-in-compile-only', fdt,
             env={**os.environ, 'MIAMI_COMPILE_ONLY': '1'})
-        print('PASS: valid payload; 11 malformed/truncated payloads rejected; one-CPU ADT; '
+        print('PASS: valid payload and signed RAM-root handoff; root range/size/entry/type/argument failures and signed-code corruption rejected; 11 malformed/truncated payloads rejected; one-CPU ADT; '
               'file-only CTF skipped with invalid variants rejected; four reservation/bank failures rejected; '
               '>2-MiB payload loader cross-compiled and linked')
 
