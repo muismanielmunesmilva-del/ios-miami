@@ -5,6 +5,10 @@ translation and timer IRQs on the boot CPU. The full XNU kernel compiled,
 linked and passed payload validation in [Actions run #3](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42165337842)
 at source commit `1574a19bf2b95dc2563a1a3d89a81ff99e77b223`.
 It has not been booted on miami. This package has no iOS installation.
+Temporary loader 0002 reached the pre-branch marker after copying all kernel
+segments. That first kernel has a confirmed splash-table alignment defect;
+source now aligns overallocated table storage at runtime. The corrected full
+build and first XNU-generated hardware output are still being verified.
 Read [BRINGUP.md](BRINGUP.md) for implementation details and limitations.
 
 ## GitHub Actions

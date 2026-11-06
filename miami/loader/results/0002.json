@@ -1,0 +1,21 @@
+{
+  "image_id": "MIAMI_XNU_0002",
+  "evidence": "user photograph",
+  "photo_sha256": "ac5af224800f0e5c833f1088032d0dd588f2f6511df280c3ab044c8a4d57e8eb",
+  "values": {
+    "CurrentEL": "0x4",
+    "SCTLR": "0xc00808",
+    "IMAGE_BASE": "0xa0080000",
+    "RAM_LAYOUT": "0x0",
+    "TARGET_LAYOUT": "0x0",
+    "PAYLOAD_PLAN": "0x0",
+    "XNU_PHYS_BASE": "0x180000000",
+    "XNU_ENTRY_PA": "0x18145f488",
+    "FB_BASE": "0x85200000",
+    "FB_ROW_BYTES": "0x10e0"
+  },
+  "copied_segments": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+  "last_visible_line": "XNU: jumping; manual reset if stopped",
+  "conclusion": "Loader validation and ten segment copies completed. Pre-branch message reached. XNU entry and execution remain unconfirmed; no XNU diagnostic or loader exception visible.",
+  "limitations": "Copy completion is not a read-back verification or a general RAM test. Photograph does not prove that the branch itself executed."
+}

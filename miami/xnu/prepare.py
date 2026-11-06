@@ -100,13 +100,14 @@ def prepare(tree):
     section(tree, start, '#if defined(MIAMI)\n\t/* Stage 0:', '#endif\n', '')
     section(tree, start, '#if defined(MIAMI)\n\t/*\n\t * Splash framebuffer:', '#endif\n',
             (Path(__file__).parent / 'bootstrap-splash.S.inc').read_text())
-    # One independently reserved L3 page, reached physically with ADRP while
-    # MMU is off. It cannot collide with create_bootstrap_mapping's freeptr.
+    # Reserve two pages and round the runtime pointer up to 16K. Mach-O's
+    # common-symbol placement did not retain the requested 16K alignment in
+    # the actual Xcode build; an aligned C declaration alone is insufficient.
     vm = 'osfmk/arm64/arm_vm_init.c'
     edit(tree, vm,
          'SECURITY_READ_ONLY_LATE(uint8_t) bootstrap_pagetables[BOOTSTRAP_TABLE_SIZE] __attribute__((aligned(ARM_PGBYTES)));',
          'SECURITY_READ_ONLY_LATE(uint8_t) bootstrap_pagetables[BOOTSTRAP_TABLE_SIZE] __attribute__((aligned(ARM_PGBYTES)));\n'
-         'uint64_t miami_boot_splash_l3[2048] __attribute__((aligned(16384)));')
+         'uint64_t miami_boot_splash_storage[4096] __attribute__((aligned(4096)));')
     section(tree, vm, 'static void\nmiami_early_map_final(void)', '\n}\n',
             (Path(__file__).parent / 'final-splash.c.inc').read_text())
     edit(tree, vm, 'miami_early_relocate(MIAMI_EARLY_FB_VA);',
@@ -158,4 +159,3 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('apple_tree', type=Path)
     prepare(parser.parse_args().apple_tree)
-

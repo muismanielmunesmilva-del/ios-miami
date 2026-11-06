@@ -6,6 +6,28 @@
 #include "../probe/layout.h"
 #include <libfdt.h>
 extern char _head[], _end[], _payload_start[], _payload_end[];
+/* Linux persistent_ram_buffer: signature, start, size, then console bytes.
+ * Use only the FDT-validated ramoops console. No persistent storage writes. */
+static volatile uint32_t *trace_header;
+static volatile uint8_t *trace_bytes;
+static uint32_t trace_used;
+static int exception_active;
+static void put(char c)
+{
+    if (trace_header && trace_used < 4096) trace_bytes[trace_used++] = (uint8_t)c;
+    screen_put(c);
+}
+static void commit(void)
+{
+    if (trace_header) {
+        __asm__ volatile("dsb sy" ::: "memory");
+        trace_header[1] = trace_used;
+        trace_header[2] = trace_used;
+        trace_header[0] = 0x43474244;
+        __asm__ volatile("dsb sy" ::: "memory");
+    }
+    screen_commit();
+}
 struct boot_video { uint64_t base, display, row_bytes, width, height, depth; };
 struct boot_args {
     uint16_t Revision, Version;
@@ -22,21 +44,23 @@ _Static_assert(offsetof(struct boot_args, Video) == 40, "Apple video ABI");
 _Static_assert(offsetof(struct boot_args, CommandLine) == 108, "Apple command line ABI");
 void probe_hex(const char *label, uint64_t value)
 {
-    while (*label) screen_put(*label++);
-    screen_put('='); screen_put('0'); screen_put('x');
+    while (*label) put(*label++);
+    put('='); put('0'); put('x');
     for (int shift = 60; shift >= 0; shift -= 4) {
         unsigned v = (value >> shift) & 15;
-        screen_put(v < 10 ? '0' + v : 'a' + v - 10);
+        put(v < 10 ? '0' + v : 'a' + v - 10);
     }
-    screen_put('\n'); screen_commit();
+    put('\n'); commit();
 }
 static void message(const char *text)
 {
-    while (*text) screen_put(*text++);
-    screen_commit();
+    while (*text) put(*text++);
+    commit();
 }
 unsigned probe_exception(unsigned slot)
 {
+    if (exception_active) return 0;
+    exception_active = 1;
     uint64_t esr, elr, far;
     __asm__ volatile("mrs %0, esr_el1; mrs %1, elr_el1; mrs %2, far_el1" : "=r"(esr), "=r"(elr), "=r"(far));
     probe_hex("EXCEPTION_SLOT", slot); probe_hex("ESR_EL1", esr);
@@ -84,17 +108,30 @@ void probe_main(const void *fdt)
 {
     uint64_t control, el;
     __asm__ volatile("mrs %0, CurrentEL; mrs %1, sctlr_el1" : "=r"(el), "=r"(control));
-    if (el != 4 || (control & 0x1005)) return; /* observed EL1, M/C/I off */
+    if (el != 4 || (control & 1)) return; /* physical accesses require MMU off */
+    struct probe_layout layout;
+    int valid_fdt = !fdt_check_header(fdt) && fdt_totalsize(fdt) <= 0x200000 &&
+        !fdt_check_full(fdt, fdt_totalsize(fdt));
+    int target = valid_fdt ? probe_layout_from_fdt(fdt, &layout) : -1;
+    /* The ring is initialized before display access, but only after target
+     * validation and with caches off, matching the proven probe console ABI. */
+    if (!target && !(control & 0x1005) && layout.console_size >= 4108) {
+        trace_header = (volatile uint32_t *)(uintptr_t)layout.console;
+        trace_bytes = (volatile uint8_t *)(uintptr_t)(layout.console + 12);
+        trace_header[0] = trace_header[1] = trace_header[2] = 0;
+        message("MIAMI XNU loader 0002: before display\n");
+    }
     screen_init(control);
-    message("MIAMI XNU loader 0001\n");
-    if (fdt_check_header(fdt) || fdt_totalsize(fdt) > 0x200000) return;
+    message("MIAMI XNU loader 0002\n");
+    probe_hex("CurrentEL", el); probe_hex("SCTLR", control);
+    probe_hex("IMAGE_BASE", (uintptr_t)_head);
+    if (control & 0x1005) { message("Unexpected caches enabled; stopped\n"); return; }
+    if (!valid_fdt) { message("Invalid live FDT; stopped\n"); return; }
     int result = miami_fdt_ram_allowed(fdt, fdt_totalsize(fdt));
     probe_hex("RAM_LAYOUT", (uint32_t)result);
     if (result || !live_objects_clear(fdt)) return;
-    struct probe_layout layout;
-    result = probe_layout_from_fdt(fdt, &layout);
-    probe_hex("TARGET_LAYOUT", (uint32_t)result);
-    if (result) return;
+    probe_hex("TARGET_LAYOUT", (uint32_t)target);
+    if (target) return;
     struct screen_info video;
     if (screen_handoff(&video)) { message("SDE autorefresh not confirmed; stopped\n"); return; }
     struct miami_plan plan;
@@ -108,11 +145,13 @@ void probe_main(const void *fdt)
     probe_hex("FB_ROW_BYTES", video.row_bytes);
     /* All destination ranges, reservations, source spans, boot arguments and
      * active boot objects were validated before the first upper-RAM store. */
+    message("XNU segment copy begin\n");
     for (unsigned i = 0; i < p->nsegs; ++i) {
         const struct miami_segment *s = &p->segs[i];
         uintptr_t dst = MIAMI_RAM_BASE + s->vmaddr - p->virt_base;
         copy_bytes(dst, _payload_start + s->file_off, s->file_size);
         zero_bytes(dst + s->file_size, s->vmsize - s->file_size);
+        probe_hex("COPIED_SEGMENT", i);
     }
     copy_bytes(plan.adt_pa, _payload_start + p->adt_off, p->adt_size);
     miami_store_le((void *)(plan.adt_pa + plan.fb_reg_off), video.base, 8);

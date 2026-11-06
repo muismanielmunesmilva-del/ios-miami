@@ -41,8 +41,8 @@ _test:
     ret
 .section __DATA,__data
 .p2align 14
-_miami_boot_splash_l3:
-.space 16384
+_miami_boot_splash_storage:
+.space 32768
 '''
     source = temp / 'bootstrap.S'
     source.write_text(assembly)
@@ -63,25 +63,42 @@ typedef uint64_t vm_offset_t;
 static uint64_t gVirtBase = 0xfffffe0006000000ULL;
 static tt_entry_t cpu_tte[2048], l2_test[2048];
 static void *phystokv(uint64_t pa) { assert(pa == 0x180004000ULL); return l2_test; }
-static uint64_t kvtophys(uint64_t va) { (void)va; return 0x180008000ULL; }
+static void *expected_table;
+static uint64_t kvtophys(uint64_t va) { assert(va == (uintptr_t)expected_table); assert(!(va & 16383)); return 0x180008000ULL; }
 '''
     body = (ROOT / 'final-splash.c.inc').read_text()
     barrier = '__asm__ volatile("dsb ishst" ::: "memory");'
     assert body.count(barrier) == 1
-    c += body.replace(barrier, '') + '''
+    declaration = 'static tt_entry_t miami_final_splash_storage[4096] __attribute__((aligned(4096)));'
+    assert body.count(declaration) == 1
+    # Exercise the actual mapping function with deliberately misplaced backing
+    # storage, reproducing the linked kernel's 4K/8K/12K offsets within a 16K page.
+    backing = '''static unsigned char test_storage[49152] __attribute__((aligned(16384)));
+static unsigned test_offset;
+#define miami_final_splash_storage (test_storage + test_offset)'''
+    c += body.replace(barrier, '').replace(declaration, backing) + '''
 int main(void) {
+    const unsigned offsets[] = {0, 8, 4096, 8192, 12288, 16376};
+    for (unsigned test = 0; test < sizeof(offsets) / sizeof(offsets[0]); ++test) {
+    test_offset = offsets[test];
+    expected_table = test_storage + (test_offset ? 16384 : 0);
+    for (unsigned i = 0; i < sizeof(test_storage); ++i) test_storage[i] = 0xa5;
+    for (unsigned i = 0; i < 2048; ++i) l2_test[i] = 0;
     cpu_tte[(MIAMI_EARLY_FB_VA & ARM_TT_L1_INDEX_MASK) >> ARM_TT_L1_SHIFT] = 0x180004003ULL;
     miami_early_map_final();
     assert(l2_test[(MIAMI_EARLY_FB_VA & ARM_TT_L2_INDEX_MASK) >> ARM_TT_L2_SHIFT] == 0x180008003ULL);
     unsigned mapped = 0;
     for (unsigned i = 0; i < 2048; ++i) {
-        uint64_t pa = 0x84000000ULL + ((uint64_t)i << 14), pte = miami_final_splash_l3[i];
+        uint64_t pa = 0x84000000ULL + ((uint64_t)i << 14), pte = ((tt_entry_t *)expected_table)[i];
         if (pa < 0x85200000ULL || pa >= 0x85e00000ULL) { assert(pte == 0); continue; }
         ++mapped;
         assert((pte & 0x0000ffffffffc000ULL) == pa);
         assert((pte & 0x60000000000407ULL) == 0x60000000000407ULL);
     }
     assert(mapped == 768);
+    for (unsigned i = 0; i < (uintptr_t)expected_table - (uintptr_t)test_storage; ++i) assert(test_storage[i] == 0xa5);
+    for (unsigned i = (uintptr_t)expected_table - (uintptr_t)test_storage + 16384; i < sizeof(test_storage); ++i) assert(test_storage[i] == 0xa5);
+    }
     return 0;
 }
 '''
@@ -90,4 +107,4 @@ int main(void) {
     binary = temp / 'final'
     subprocess.run(['gcc', '-O2', '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
-print('PASS: Darwin arm64 bootstrap assembly; final page table maps exactly 768 splash pages with NC/XN attributes')
+print('PASS: Darwin arm64 bootstrap assembly; six backing-storage offsets produce aligned final tables, exactly 768 NC/XN splash pages and untouched guards')

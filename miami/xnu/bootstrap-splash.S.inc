@@ -3,8 +3,13 @@
      * Both kernel PA (6 GiB) and splash have L1 index zero with 16K pages.
      * Find the identity L2 from its descriptor instead of guessing its page.
      */
-    adrp    x10, EXT(miami_boot_splash_l3)@page
-    add     x10, x10, EXT(miami_boot_splash_l3)@pageoff
+    adrp    x10, EXT(miami_boot_splash_storage)@page
+    add     x10, x10, EXT(miami_boot_splash_storage)@pageoff
+    /* The linker may place common symbols on 4K boundaries. Reserve 32K
+     * and align this physical pointer explicitly for the 16K granule. */
+    add     x10, x10, #3, lsl #12
+    add     x10, x10, #4095
+    and     x10, x10, #0xffffffffffffc000
     mov     x11, x10
     mov     x12, #2048
 Lmiami_zero_splash:

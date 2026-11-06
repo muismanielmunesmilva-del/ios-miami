@@ -6,6 +6,22 @@ at source commit `1574a19bf2b95dc2563a1a3d89a81ff99e77b223`.
 The artifact was downloaded and its checksums and identities independently
 verified. XNU has not been booted on the phone.
 
+Temporary image 0002 subsequently reached its pre-XNU-branch message on the
+phone: all three loader validators returned 0 and segment copy markers 0..9
+are photo-confirmed. There is no XNU-generated stage marker yet. Host bootstrap
+analysis of that compiled kernel found the added splash tables at offsets
+0x3000 (bootstrap) and 0x2000 (final) inside 16K pages, despite the source's
+aligned(16384) declarations. QEMU Cortex-A55 reached the first early-console
+marker and raised a level-3 translation fault on its framebuffer write. QEMU
+virt is not a model of this phone; this identifies a real binary defect but
+does not by itself establish the hardware failure's cause.
+
+The correction reserves 32K for each 16K table and rounds its runtime address
+up to the next 16K boundary, including a physical-address alignment assertion
+for the final table. Regression tests execute the actual final mapping function
+with six deliberately misaligned backing offsets and verify all leaves and
+untouched guards. A fresh full build and hardware confirmation remain required.
+
 ## Adaptation
 
 `prepare.py` checks Apple's exact xnu-8796.141.3 commit
