@@ -1,0 +1,7 @@
+{
+  "local_source_commit": "ab1e7b44b7d2d9b5cfc758f458f244e3c3ae263b",
+  "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
+  "kind": "minimal source snapshot; no local Git history or private device dumps",
+  "date_local": "2026-11-05",
+  "full_kernel_build": "pending"
+}

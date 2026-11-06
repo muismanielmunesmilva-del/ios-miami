@@ -1,0 +1,96 @@
+{
+  "date_local": "2026-11-05",
+  "purpose": "Early SWEET reference source application audit; not a miami kernel build",
+  "apple_xnu_commit": "1b191cb58250d0705d8a51287127505aa4bc0789",
+  "build_helper_commit": "663906528d1cd5ea8fde7de6f16de73db9511549",
+  "required_patches": [
+    {
+      "name": "0001-new-clang-drop-removed-auto-var-init-flag.patch",
+      "sha256": "c5d413a565650740c2f4e689de8a6036d7b0a294b1650411d37c0ca2fa3c53d4"
+    },
+    {
+      "name": "0002-new-clang-backport-UIO_STACKBUF.patch",
+      "sha256": "e5bf247ec736ddde76f2306760d2ae54522f61d7aeb0a301396744bd7172b542"
+    },
+    {
+      "name": "0003-sweet-framebuffer-serial-console.patch",
+      "sha256": "c154bf44b1df3585999eeb4f117756ea98fdbdd42d084c07d2fbd9662fcbbedf"
+    },
+    {
+      "name": "0004-sweet-machine-config.patch",
+      "sha256": "48764697955e23c0d5526ff77edb0eda86bcbd76f68b2920fdca5ac2156eeff9"
+    },
+    {
+      "name": "0005-non-pac-build-fixes.patch",
+      "sha256": "e7cd7efd01174883bceafab62391fa1f850ad373583057b465ad7a271e586df1"
+    },
+    {
+      "name": "0006-sweet-master-config-open-source-asm-pmap.patch",
+      "sha256": "08d6d04568aad04b0d314fb55f46ea3bad1a52603c01ee9acc3539da82a138c2"
+    },
+    {
+      "name": "0007-sweet-stub-apple-internal-headers.patch",
+      "sha256": "1d7492e9f5e581c948cb8dcef8ac13acda0c37e36788c6e20cb9977115eae09e"
+    },
+    {
+      "name": "0008-sweet-fill-closed-lib-gaps-kpc-stub.patch",
+      "sha256": "d61f06ae25b0c9497f198bd33a0446808357d5c631287ffb2a39ee4727b15dd2"
+    },
+    {
+      "name": "0009-sweet-drop-apple-soc-only-exports.patch",
+      "sha256": "2724ab6685680117fff8b82727ea86bd61819f4f413dc6abbaef4fe5428752b6"
+    },
+    {
+      "name": "0010-sweet-early-framebuffer-debug.patch",
+      "sha256": "45f4d5d38cec122c3aad5b102becaac12f2943cc618b47bf9f47f5d644fafb36"
+    },
+    {
+      "name": "0011-sweet-physmap-alignment-padding.patch",
+      "sha256": "1fad5b0e4d7b4f30d72ca69222a28a96ac57f4830c37986cab8b17dfe2d682d6"
+    },
+    {
+      "name": "0012-sweet-keep-debug-console-after-ttbr0.patch",
+      "sha256": "93e4516889d9ddd24fd718efb2800e9d5ce313dcca633b23f34f0e3b0d4556bc"
+    },
+    {
+      "name": "0013-sweet-kmem-rng-without-corecrypto.patch",
+      "sha256": "a66bac37a541bb11eaabf62dbb0b711171c487986ab8fee892f473069b5e2469"
+    },
+    {
+      "name": "0014-sweet-kernel-hmac-prng.patch",
+      "sha256": "9194d4706182aa9aa31bcffa9e2400f2fedb00078e9016bf992919e81465786b"
+    },
+    {
+      "name": "0015-sweet-unavailable-trust-cache-runtime.patch",
+      "sha256": "ba331a54731770daf67d9f1c3804065aadd9425c1a17dec623a6804c960b5085"
+    },
+    {
+      "name": "0016-sweet-device-tree-platform-expert.patch",
+      "sha256": "312c0c5a88c014848858d92c806d2a447044d4d4cedcbe9c3848d0dafc048464"
+    },
+    {
+      "name": "0017-sweet-device-tree-virtual-timer-irq.patch",
+      "sha256": "785fab99de844cb5e7a280fd49f163eef61367b2d7940d089a4d5dc522afafa0"
+    },
+    {
+      "name": "0018-sweet-boot-cpu-driver.patch",
+      "sha256": "fd931ab783327fcc854f9f43441a688ff150ead0c637cc53821ed402f7146da4"
+    }
+  ],
+  "helper_applied": [
+    "kas_info.patch",
+    "machine_routines.patch",
+    "skywalk_ventura.patch",
+    "syntax_checker_ventura.patch"
+  ],
+  "helper_skipped": [
+    "iobuffermemd_monterey.patch",
+    "skywalk_sonoma.patch",
+    "syntax_checker_sonoma.patch",
+    "TrustCache.patch"
+  ],
+  "required_patch_application": "PASS",
+  "compiled": false,
+  "bootable_for_miami": false,
+  "next": "Adapt target loader, ADT and early console; resolve supported-runner iig ABI before compiling"
+}
