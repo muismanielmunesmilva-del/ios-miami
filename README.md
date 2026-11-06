@@ -8,7 +8,7 @@ The host-only virtual GIC/timer control shows pthread callback registration and 
 
 On the phone, image 0004's photograph confirms XNU console, platform expert and VM bootstrap progress. Image 0005's user report confirms CPU/SGI1 progress, followed by a photograph whose backtrace identifies the previous missing pthread-table guard; the panic header is outside the photo. Image 0006 was accepted by temporary fastboot boot; its photograph confirms XNU panic output with the exact verified kernel UUID. The reason, exception registers and backtrace are absent, so its cause and phone pthread completion remain unproven. iOS userland has not started.
 
-The next diagnostic preserves the first panic reason and valid saved exception registers in 18 protected framebuffer rows. Host pixel/console regression tests and isolated Darwin arm64 compilation pass; its full Actions build and physical test are pending. See [diagnostic design and checks](miami/xnu/PANIC-SCREEN.md).
+The first-panic diagnostic passed the complete [Actions run 42281662142](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42281662142) at `988db79023cdce6805785bcc980b65a2adf07094`. In a 45-second host control, its protected pane survives the native panic report and its PC/ESR/FAR match QEMU's independent exception trace. Image 0007 passed packaging/FDT/AVB checks and was accepted by temporary fastboot boot; the phone's screen observation is pending. See [diagnostic design and results](miami/xnu/PANIC-SCREEN.md).
 
 - [Build instructions](miami/xnu/README.md)
 - [Pthread matching, integration and results](miami/xnu/PTHREAD.md)
@@ -18,6 +18,6 @@ The next diagnostic preserves the first panic reason and valid saved exception r
 
 Both workflows use macOS 15 Intel, preinstalled Xcode 16.4 and DEVELOPMENT/ARM64/MIAMI. The fallback is manual only. Device dumps, calibration, downloaded Apple userland and local build output are excluded. Android is preserved; device tests use temporary fastboot boot images.
 
-Latest kernel: 15,904,816 bytes, SHA-256 `ed5206231af5a6f9d46f2f690b99b9fea6ccecc905e2ca5801e5f35533b30b8b`.
+Latest diagnostic kernel: 15,905,352 bytes, SHA-256 `842b7d87c6c840bc14d98d42a7e3cf43aaf53321ee6fc26e1a8f1c33f15fe61b`, UUID `47A0388E-4A7B-3B9B-A5D4-96E5C55468B4`.
 
 See [LICENSE](LICENSE) and original copyright notices.
