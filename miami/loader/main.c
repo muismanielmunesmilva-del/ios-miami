@@ -119,10 +119,10 @@ void probe_main(const void *fdt)
         trace_header = (volatile uint32_t *)(uintptr_t)layout.console;
         trace_bytes = (volatile uint8_t *)(uintptr_t)(layout.console + 12);
         trace_header[0] = trace_header[1] = trace_header[2] = 0;
-        message("MIAMI XNU loader 0002: before display\n");
+        message("MIAMI XNU loader 0004: before display\n");
     }
     screen_init(control);
-    message("MIAMI XNU loader 0002\n");
+    message("MIAMI XNU loader 0004\n");
     probe_hex("CurrentEL", el); probe_hex("SCTLR", control);
     probe_hex("IMAGE_BASE", (uintptr_t)_head);
     if (control & 0x1005) { message("Unexpected caches enabled; stopped\n"); return; }
@@ -153,6 +153,19 @@ void probe_main(const void *fdt)
         zero_bytes(dst + s->file_size, s->vmsize - s->file_size);
         probe_hex("COPIED_SEGMENT", i);
     }
+    __asm__ volatile("dsb sy" ::: "memory");
+    for (unsigned i = 0; i < p->nsegs; ++i) {
+        const struct miami_segment *s = &p->segs[i];
+        uintptr_t dst = MIAMI_RAM_BASE + s->vmaddr - p->virt_base;
+        result = miami_copy_matches((const volatile void *)dst,
+            _payload_start + s->file_off, s->file_size, s->vmsize);
+        if (result) {
+            probe_hex("READBACK_BAD_SEGMENT", i);
+            probe_hex("READBACK_RESULT", (uint32_t)result);
+            return;
+        }
+    }
+    probe_hex("READBACK_RESULT", 0);
     copy_bytes(plan.adt_pa, _payload_start + p->adt_off, p->adt_size);
     miami_store_le((void *)(plan.adt_pa + plan.fb_reg_off), video.base, 8);
     miami_store_le((void *)(plan.adt_pa + plan.fb_reg_off + 8), video.row_bytes * video.height, 8);
@@ -167,6 +180,18 @@ void probe_main(const void *fdt)
     ba->deviceTreeP = p->virt_base + plan.adt_pa - MIAMI_RAM_BASE;
     ba->deviceTreeLength = p->adt_size;
     for (unsigned i = 0; i < sizeof(ba->CommandLine); ++i) ba->CommandLine[i] = p->cmdline[i];
+    __asm__ volatile("dsb sy" ::: "memory");
+    const volatile struct boot_args *rb = ba;
+    result = rb->Revision != 2 || rb->Version != 2 || rb->virtBase != p->virt_base ||
+        rb->physBase != MIAMI_RAM_BASE || rb->memSize != MIAMI_RAM_SIZE ||
+        rb->topOfKernelData != plan.top || rb->deviceTreeP != p->virt_base + plan.adt_pa - MIAMI_RAM_BASE ||
+        rb->deviceTreeLength != p->adt_size || rb->Video.base != video.base ||
+        rb->Video.row_bytes != video.row_bytes || rb->Video.width != video.width ||
+        rb->Video.height != video.height || rb->Video.depth != 32 || rb->bootFlags != 0 ||
+        rb->memSizeActual != MIAMI_RAM_SIZE ||
+        miami_copy_matches(rb->CommandLine, p->cmdline, sizeof(p->cmdline), sizeof(p->cmdline));
+    probe_hex("BOOT_ARGS_READBACK", result);
+    if (result) return;
     message("XNU: jumping; manual reset if stopped\n");
     __asm__ volatile("dsb sy; ic iallu; dsb sy; isb" ::: "memory");
     ((void (*)(uint64_t))(uintptr_t)plan.entry_pa)(plan.boot_args_pa);

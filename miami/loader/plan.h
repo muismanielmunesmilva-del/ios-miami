@@ -23,3 +23,4 @@ struct miami_plan {
 int miami_payload_plan(const void *bytes, size_t size, struct miami_plan *out);
 int miami_fdt_ram_allowed(const void *fdt, size_t available);
 void miami_store_le(void *dst, uint64_t value, unsigned bytes);
+int miami_copy_matches(const volatile void *dst, const void *source, size_t file_size, size_t memory_size);

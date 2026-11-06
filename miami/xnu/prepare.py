@@ -97,6 +97,27 @@ def prepare(tree):
 
     # No unvalidated fixed framebuffer write before boot_args are available.
     start = 'osfmk/arm64/start.s'
+    edit(tree, start, '.macro MSR_VBAR_EL1_X0',
+         (Path(__file__).parent / 'boot-marks.S.inc').read_text() + '\n.macro MSR_VBAR_EL1_X0')
+    genassym = 'osfmk/arm64/genassym.c'
+    edit(tree, genassym, '\tDECLARE("BA_VIRT_BASE", offsetof(struct boot_args, virtBase));',
+         '\tDECLARE("BA_VIRT_BASE", offsetof(struct boot_args, virtBase));\n'
+         '\tDECLARE("BA_VIDEO_BASE", offsetof(struct boot_args, Video.v_baseAddr));\n'
+         '\tDECLARE("BA_VIDEO_ROW_BYTES", offsetof(struct boot_args, Video.v_rowBytes));')
+    edit(tree, start, 'LEXT(start_first_cpu)\n',
+         'LEXT(start_first_cpu)\n#if defined(MIAMI)\n\tmiami_boot_mark x0, 1\n#endif\n')
+    edit(tree, start, '\tMSR_VBAR_EL1_X0\n\n\n\t// Get the kernel memory parameters',
+         '\tMSR_VBAR_EL1_X0\n#if defined(MIAMI)\n\tmiami_boot_mark x20, 2\n#endif\n\n\t// Get the kernel memory parameters')
+    edit(tree, start, '\t// Set up exception stack pointer\n',
+         '#if defined(MIAMI)\n\tmiami_boot_mark x20, 3\n#endif\n\t// Set up exception stack pointer\n')
+    edit(tree, start, '\t/* Ensure TTEs are visible */',
+         '#if defined(MIAMI)\n\tmiami_boot_mark x20, 4\n#endif\n\t/* Ensure TTEs are visible */')
+    edit(tree, start, '\t// Enable caches, MMU, ROP and JOP\n',
+         '#if defined(MIAMI)\n\tmiami_boot_mark x20, 5\n#endif\n\t// Enable caches, MMU, ROP and JOP\n')
+    edit(tree, start, '\tMSR_SCTLR_EL1_X0\n\tisb\t\tsy\n',
+         '\tMSR_SCTLR_EL1_X0\n\tisb\t\tsy\n#if defined(MIAMI)\n\tmiami_boot_mark x20, 6\n#endif\n')
+    edit(tree, start, '\t// Return to arm_init()\n\tret',
+         '#if defined(MIAMI)\n\tmiami_boot_mark x0, 7\n#endif\n\t// Return to arm_init()\n\tret')
     section(tree, start, '#if defined(MIAMI)\n\t/* Stage 0:', '#endif\n', '')
     section(tree, start, '#if defined(MIAMI)\n\t/*\n\t * Splash framebuffer:', '#endif\n',
             (Path(__file__).parent / 'bootstrap-splash.S.inc').read_text())

@@ -8,7 +8,10 @@ It has not been booted on miami. This package has no iOS installation.
 Temporary loader 0002 reached the pre-branch marker after copying all kernel
 segments. That first kernel has a confirmed splash-table alignment defect;
 source now aligns overallocated table storage at runtime. The corrected full
-build and first XNU-generated hardware output are still being verified.
+build passed in run 42192773280 and progressed through console initialization
+in QEMU. Hardware image 0003 still stops at the pre-branch message. The next
+diagnostic adds loader readback checks and seven early-entry visual markers;
+XNU-generated hardware output remains unconfirmed.
 Read [BRINGUP.md](BRINGUP.md) for implementation details and limitations.
 
 ## GitHub Actions

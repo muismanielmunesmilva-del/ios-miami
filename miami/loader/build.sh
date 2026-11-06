@@ -76,7 +76,7 @@ python3 "$avbtool" add_hash_footer --image out/boot.img --partition_name boot \
     --partition_size 100663296 --algorithm NONE --hash_algorithm sha256 \
     --salt 0000000000000000000000000000000000000000000000000000000000000000 \
     --prop com.android.build.boot.os_version:11.0.0 \
-    --prop com.android.build.boot.fingerprint:local/miami-xnu/miami:11/MIAMI_XNU/0002:eng/test-keys
+    --prop com.android.build.boot.fingerprint:local/miami-xnu/miami:11/MIAMI_XNU/0004:eng/test-keys
 python3 "$avbtool" verify_image --image out/boot.img
 sha256sum out/Image out/payload.bin out/boot.img
 echo 'Built a temporary image; no phone command has been issued.'

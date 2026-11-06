@@ -74,6 +74,17 @@ def check(dtc, live_fdt=None):
         library = ctypes.CDLL(str(shared))
         library.miami_payload_plan.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p]
         library.miami_fdt_ram_allowed.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+        library.miami_copy_matches.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t]
+        reference = ctypes.create_string_buffer(b'kernel')
+        copied = ctypes.create_string_buffer(b'kernel\0\0\0\0', 10)
+        assert library.miami_copy_matches(copied, reference, 6, 10) == 0
+        copied[2] = b'X'
+        assert library.miami_copy_matches(copied, reference, 6, 10) == -2
+        copied[2] = b'r'
+        copied[9] = b'X'
+        assert library.miami_copy_matches(copied, reference, 6, 10) == -3
+        assert library.miami_copy_matches(copied, reference, 11, 10) == -1
+        assert library.miami_copy_matches(copied, reference, 0, 0x40000000) == -1
         kernel = temp / 'SYNTHETIC-NOT-XNU.macho'
         kernel.write_bytes(fixture_kernel())
         packed = temp / 'fixture.bin'
@@ -150,4 +161,3 @@ if __name__ == '__main__':
     parser.add_argument('--live-fdt', type=Path)
     args = parser.parse_args()
     check(args.dtc, args.live_fdt)
-

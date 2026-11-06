@@ -20,7 +20,31 @@ The correction reserves 32K for each 16K table and rounds its runtime address
 up to the next 16K boundary, including a physical-address alignment assertion
 for the final table. Regression tests execute the actual final mapping function
 with six deliberately misaligned backing offsets and verify all leaves and
-untouched guards. A fresh full build and hardware confirmation remain required.
+untouched guards. [The corrected full build](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42192773280)
+passed at `02467e8f6b3170bb90fddfd6c4513e26e82c01c4`. Download hashes and
+linked storage bounds/alignment passed. QEMU then initialized the console and
+reached the target GIC code before a target-MMIO abort; virt does not model the
+SM6375 GIC layout. The phone's temporary image 0003 still shows only the loader's
+pre-branch message, according to the user. Hardware XNU entry remains unconfirmed.
+
+The next diagnostic build adds complete segment/zero-tail readback and critical
+boot-argument readback to loader 0004. Seven stack-free assembly markers add
+white blocks at y=32 in the validated splash buffer. Their boot-argument field
+offsets come from genassym; they touch no clock or storage registers.
+
+| White blocks reached | Cold-boot milestone |
+| --- | --- |
+| 1 | start_first_cpu reached, before OSLAR |
+| 2 | early physical exception vector installed |
+| 3 | boot memory parameters read, before virtual stack selection |
+| 4 | bootstrap and splash tables populated |
+| 5 | translation registers set, before enabling MMU |
+| 6 | MMU-enable instruction and following ISB completed |
+| 7 | about to enter arm_init |
+
+The markers use x8..x13 only and make no function call or stack access. Later
+console output can overwrite them. Source checks and a fresh full kernel build
+must pass before this diagnostic is booted on the phone.
 
 ## Adaptation
 

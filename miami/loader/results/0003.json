@@ -1,0 +1,12 @@
+{
+  "image_id": "MIAMI_XNU_0003",
+  "loader_version": "0002",
+  "kernel_commit": "02467e8f6b3170bb90fddfd6c4513e26e82c01c4",
+  "kernel_sha256": "dbe2d087d1a1f854513414a1c72908c787e5c5daf3352d72f119480f2ece6b7b",
+  "boot_image_sha256": "63792e87dc2a4787e1fc3da863b13adb4b255d07f2fa33018b6323cd4243daf9",
+  "fastboot": {"send": "OKAY 2.665s", "boot": "OKAY 2.631s"},
+  "evidence": "user text report after temporary boot",
+  "last_visible_line": "XNU: jumping",
+  "xnu_entry_confirmed": false,
+  "conclusion": "Corrected table alignment passes linked-binary checks and progresses through console initialization in QEMU, but does not yet produce XNU output on the phone. Earliest hardware stage remains unknown."
+}

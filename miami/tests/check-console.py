@@ -23,11 +23,13 @@ DEFINES = '''
 #define ARM_TTE_BLOCK_AF 0x400
 #define ARM_TTE_BLOCK_PNX 0x0020000000000000
 #define ARM_TTE_BLOCK_NX 0x0040000000000000
+#define BA_VIDEO_BASE 40
+#define BA_VIDEO_ROW_BYTES 56
 '''
 
 with tempfile.TemporaryDirectory(prefix='miami-console-') as folder:
     temp = Path(folder)
-    assembly = DEFINES + r'''
+    assembly = DEFINES + (ROOT / 'boot-marks.S.inc').read_text() + r'''
 .macro MOV64 reg, val
     movz \reg, #((\val) & 0xffff)
     movk \reg, #(((\val) >> 16) & 0xffff), lsl #16
@@ -37,6 +39,13 @@ with tempfile.TemporaryDirectory(prefix='miami-console-') as folder:
 .text
 .globl _test
 _test:
+    miami_boot_mark x0, 1
+    miami_boot_mark x20, 2
+    miami_boot_mark x20, 3
+    miami_boot_mark x20, 4
+    miami_boot_mark x20, 5
+    miami_boot_mark x20, 6
+    miami_boot_mark x0, 7
 ''' + (ROOT / 'bootstrap-splash.S.inc').read_text() + '''
     ret
 .section __DATA,__data

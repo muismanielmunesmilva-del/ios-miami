@@ -16,6 +16,15 @@ void miami_store_le(void *dst, uint64_t value, unsigned bytes)
     uint8_t *p = dst;
     for (unsigned i = 0; i < bytes; ++i) p[i] = value >> (i * 8);
 }
+int miami_copy_matches(const volatile void *dst, const void *source, size_t file_size, size_t memory_size)
+{
+    if (!dst || (!source && file_size) || file_size > memory_size || memory_size > MIAMI_RAM_SIZE) return -1;
+    const volatile uint8_t *actual = dst;
+    const uint8_t *expected = source;
+    for (size_t i = 0; i < file_size; ++i) if (actual[i] != expected[i]) return -2;
+    for (size_t i = file_size; i < memory_size; ++i) if (actual[i]) return -3;
+    return 0;
+}
 static int span(uint64_t offset, uint64_t length, uint64_t size)
 {
     return offset <= size && length <= size - offset;
