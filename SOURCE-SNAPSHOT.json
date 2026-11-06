@@ -1,5 +1,5 @@
 {
-  "local_source_commit": "78d2713",
+  "local_source_commit": "d197109",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-06",
@@ -22,10 +22,11 @@
     "qemu_result": "150-second virtual GIC/timer control shows pthread initialization complete, Skywalk self-tests passed, IOMedia/Apple_HFS root wait. CPU_idle snapshot; no visible panic. Host-only, not full boot.",
     "prepared_test_image": "0008",
     "prepared_boot_sha256": "8115cf14c36fea21efe4c411dbc4f53f8ed8eebdf6f30f95cd088b3871df893a",
-    "hardware_boot_attempted": false,
+    "hardware_boot_attempted": true,
     "partition_write_commands_issued": false,
     "root_filesystem_included": false,
-    "ios_userland_included": false
+    "ios_userland_included": false,
+    "hardware_result": "Image0008 accepted by temporary fastboot boot: send2.278s boot4.011s exit0; user screen observation pending. Transport is not execution proof."
   },
   "previous_hardware_result": {
     "image": "0007",
