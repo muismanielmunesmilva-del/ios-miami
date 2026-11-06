@@ -104,6 +104,7 @@ jobs:
             tail -n 30 ../miami-build.log
           else
             tail -n 160 ../miami-build.log
+            python3 "$GITHUB_WORKSPACE/miami/xnu/summarize-errors.py" ../miami-build.log
             exit 1
           fi
       - name: Verify and collect kernel

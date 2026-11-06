@@ -1,5 +1,5 @@
 {
-  "local_source_commit": "3f721aa797ee2cc187aeac51b34c8484ed044298",
+  "local_source_commit": "bd230d72426e6d77a394c9a94681f74a717210f8",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-06",
@@ -21,6 +21,6 @@
     "project": "libpthread",
     "tag": "libpthread-514.100.2",
     "commit": "a6c70ca0e544347a0377babf748f831577ec24f9",
-    "status": "static kernel integration staged; full Apple compiler build and runtime verification pending"
+    "status": "First full build failed on missing SDK platform header; real SDK include path corrected, fresh full build pending"
   }
 }

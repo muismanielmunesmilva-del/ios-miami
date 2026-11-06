@@ -40,7 +40,8 @@ def configure(root):
     old = '    build_libdispatch\n'
     if text.count(old) != 1:
         raise ValueError('Installed-header preflight anchor changed')
-    text = text.replace(old, old + '    test -f "${FAKEROOT_DIR}/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/sys/pthread_shims.h"\n')
+    text = text.replace(old, old + '    test -f "${FAKEROOT_DIR}/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/sys/pthread_shims.h"\n'
+                        '    test -f "$(xcrun --sdk macosx --show-sdk-path)/usr/include/TargetConditionals.h"\n')
     path.write_bytes(text.encode('utf-8'))
     print('Pinned helper configured: required MIAMI staging and plain arm64 firehose')
 

@@ -40,6 +40,14 @@ headers. The workflow checks that the private pthread header exists, performs
 a full ARM64/MIAMI compile/link, verifies five real implementation symbols,
 then validates the kernel payload before upload.
 
+The first full integration run (42235712904) reached the BSD compilation and
+reported three missing TargetConditionals.h errors. XNU's -nostdinc build does
+not search the SDK's standard include directory. The component now adds the
+selected real SDK's usr/include as a system directory, after its pinned kernel
+and pthread include paths; the helper checks that platform header exists.
+Compiler errors are extracted separately from warning-heavy parallel logs.
+The corrected full build is pending.
+
 Local checks cover fresh staging, pin/match/guard invariants, helper order and
 the actual early console. An offline compile using this XNU's exported headers
 and minimal SDK platform macros compiled the startup adapter, init and support

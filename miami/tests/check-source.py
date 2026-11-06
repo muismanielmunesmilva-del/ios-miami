@@ -60,6 +60,7 @@ def check(source, helper, pthread):
     assert 'pthread_start(NULL, NULL)' in adapter
     assert 'pthread_functions != &pthread_internal_functions' in adapter
     assert '-I$(FAKEROOT_DIR)/$(KPINCDIR)' in (source / 'bsd/conf/Makefile.template').read_text()
+    assert '-isystem $(SDKROOT)/usr/include' in (source / 'bsd/conf/Makefile.template').read_text()
     assert '\npthread_callbacks_t pthread_kern;' not in init
     assert '\ncurrent_uthread(void)\n{' not in init
     files = (source / 'bsd/conf/files.arm64').read_text()

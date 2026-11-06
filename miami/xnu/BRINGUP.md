@@ -13,9 +13,10 @@ Downloaded artifact identity, CPU compatible, startup_debug and linked table
 alignment passed independent checks. A host-only QEMU virt control with its
 own GIC/timer ADT values now shows CPU registration, SGI1 verification and BSD
 MAC Framework initialization. Production ADT addresses remain for SM6375.
-On temporary image 0005, the user reports "MIAMI CPU / SGI1 verified"; the exact
-full line and a photograph are not yet available. This is reported single-CPU
-hardware progress, not a complete boot. Await the last subsequent screen line.
+On temporary image 0005, the user reports "MIAMI CPU / SGI1 verified"; that full
+CPU line has not been independently transcribed. A subsequent photograph shows
+the pthread_init panic backtrace described above. This is single-CPU hardware
+progress followed by a BSD initialization failure, not a complete boot.
 
 Status, 2026-11-05: [Actions run #3](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42165337842)
 passed validation, full macOS compile/link, real payload validation and upload

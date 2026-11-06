@@ -97,7 +97,7 @@ current_uthread(void)
         obj = Path(name).stem + '.o'
         flags += (obj + '_CFLAGS_RM += -DBSD_KERNEL_PRIVATE -D_KERNEL_BUILD -DKERNEL_BUILD -DMACH_KERNEL -DBSD_BUILD -DDRIVER_PRIVATE\n' +
                   obj + '_CFLAGS_ADD += -DMACH_KERNEL_PRIVATE -DABSOLUTETIME_SCALAR_TYPE -DNEEDS_SCHED_CALL_T -D__PTHREAD_EXPOSE_INTERNALS__ -I$(FAKEROOT_DIR)/$(KPINCDIR) -I$(FAKEROOT_DIR)/$(KINCDIR)\n' +
-                  obj + '_INCFLAGS += -I$(SRCROOT)/' + ROOT + ' -I$(SRCROOT)/' + ROOT + '/private -I$(SRCROOT)/' + ROOT + '/include\n')
+                  obj + '_INCFLAGS += -I$(SRCROOT)/' + ROOT + ' -I$(SRCROOT)/' + ROOT + '/private -I$(SRCROOT)/' + ROOT + '/include -isystem $(SDKROOT)/usr/include\n')
     make.write_bytes((make.read_text() + flags).encode())
     shims = tree / 'bsd/pthread/pthread_shims.c'
     shims_text = replace_once(shims.read_text(), '#include <stdatomic.h>\n',
