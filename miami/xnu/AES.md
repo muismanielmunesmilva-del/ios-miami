@@ -49,7 +49,27 @@ and overlapping buffers, chaining/updated IV, unchanged wrapper input IV,
 copied contexts, zero blocks, invalid key sizes/null keys and overflow guards.
 Fresh source staging, preserved first-panic console tests, isolated early C
 Darwin arm64 compilation and both workflow syntax checks pass locally.
-The full macOS build and subsequent host/phone run are still pending.
+The complete [Actions run 42287672552](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42287672552)
+passed at `64c5ca35fabdfc6838192d07412ff486ab6fc6b1`. Independent checks verify
+the exact kernel, all six AES implementation symbols, both actual CBC mode
+descriptors (256-byte contexts, 16-byte blocks), retained pthread/panic code,
+linked splash tables and MIT license identity.
+
+Kernel: 15,922,656 bytes, SHA-256
+`97085e47288650ee7b99a6ad03abf16666e3e6a0880fa1290fa86da91a59471a`.
+Artifact13539790538 ZIP11,238,164 bytes, SHA-256
+`039656570716e80b34ef143b0222ae345723b6ac9acf7f9d5e672ab160469932`.
+
+The 150-second QEMU virt GIC/timer control now shows the pthread initialization
+completion line, Skywalk self-tests passed, loopback/gif/stf thread scheduling
+and an IOMedia/Apple_HFS root-device wait. No panic is visible in the final
+snapshot; decoded text has zero unknown glyphs and CPU0 PC is cpu_idle+0x1ec.
+This establishes post-AES host progress, not phone success or complete boot.
+
+Image0008 passed real payload/live-FDT/header/AVB checks: 100,663,296 bytes,
+SHA-256 `8115cf14c36fea21efe4c411dbc4f53f8ed8eebdf6f30f95cd088b3871df893a`.
+Its physical temporary-boot test is pending. No root filesystem/storage driver
+is included, so root-device waiting is the expected next observation.
 
 ## Sources
 

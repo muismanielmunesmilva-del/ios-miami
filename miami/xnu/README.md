@@ -3,8 +3,10 @@
 Current status: the complete image0007 phone photo identifies the same AES
 data abort seen in the host control, after pthread initialization. The first
 panic reason/register pane worked on hardware. The legacy AES-CBC/ECB provider
-adaptation passes local known-answer tests; its complete build and next phone
-test are pending. See [AES.md](AES.md) and [PANIC-SCREEN.md](PANIC-SCREEN.md).
+passed local known-answer tests and the complete Actions42287672552 build.
+Its 150-second host control reaches an IOMedia/Apple_HFS root-device wait,
+without a visible panic. Image0008 is prepared; the next phone test is pending.
+See [AES.md](AES.md) and [PANIC-SCREEN.md](PANIC-SCREEN.md).
 
 ## Earlier build history
 

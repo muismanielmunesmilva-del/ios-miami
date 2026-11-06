@@ -10,7 +10,7 @@ On the phone, image 0004's photograph confirms XNU console, platform expert and 
 
 The first-panic diagnostic passed the complete [Actions run 42281662142](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42281662142) at `988db79023cdce6805785bcc980b65a2adf07094`. In a 45-second host control, its protected pane survives the native panic report and its PC/ESR/FAR match QEMU's independent exception trace. Image 0007 passed packaging/FDT/AVB checks and was accepted by temporary fastboot boot. The complete phone photo now confirms the protected first-panic pane: Kernel data abort, PC `0xfffffe00078f6a88` (`aes_encrypt_key128+0x10`), ESR `0x96000005`, FAR `0x78`. Exact code reads the NULL crypto-function table; it matches the host fault. See [diagnostic design and results](miami/xnu/PANIC-SCREEN.md).
 
-The next source adaptation supplies the real portable legacy AES-CBC/ECB provider used by ios-sweet, backed by pinned BearSSL bitslice C. Tests using this XNU's real headers and legacy wrappers pass NIST known-answer vectors and API/error cases. Full compilation and the next hardware test are pending. This does not register the complete corecrypto table. See [AES integration and evidence](miami/xnu/AES.md).
+The portable legacy AES-CBC/ECB integration passed the complete [Actions run 42287672552](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42287672552) at `64c5ca35fabdfc6838192d07412ff486ab6fc6b1`. Its 150-second host control now shows pthread initialization complete, Skywalk self-tests passed and waiting for an IOMedia/Apple_HFS root device, with no panic visible in the final snapshot. Exact artifact, six AES symbols, mode descriptors, license and table checks pass. Image 0008 is prepared for a temporary phone test; hardware observation is pending. No root filesystem or storage driver is included. See [AES integration and evidence](miami/xnu/AES.md).
 
 - [Build instructions](miami/xnu/README.md)
 - [Pthread matching, integration and results](miami/xnu/PTHREAD.md)
@@ -20,6 +20,6 @@ The next source adaptation supplies the real portable legacy AES-CBC/ECB provide
 
 Both workflows use macOS 15 Intel, preinstalled Xcode 16.4 and DEVELOPMENT/ARM64/MIAMI. The fallback is manual only. Device dumps, calibration, downloaded Apple userland and local build output are excluded. Android is preserved; device tests use temporary fastboot boot images.
 
-Latest diagnostic kernel: 15,905,352 bytes, SHA-256 `842b7d87c6c840bc14d98d42a7e3cf43aaf53321ee6fc26e1a8f1c33f15fe61b`, UUID `47A0388E-4A7B-3B9B-A5D4-96E5C55468B4`.
+Latest AES kernel: 15,922,656 bytes, SHA-256 `97085e47288650ee7b99a6ad03abf16666e3e6a0880fa1290fa86da91a59471a`, UUID `9EF5EBB6-46DD-3953-84D1-C028F5618864`.
 
 See [LICENSE](LICENSE) and original copyright notices.

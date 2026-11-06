@@ -5,7 +5,9 @@ It records Kernel data abort at aes_encrypt_key128+0x10, PCfffffe00078f6a88,
 ESR96000005,FAR78; exact code reads the NULL crypto table. The preceding TCP
 initialization proves pthread_init returned by source call ordering. The
 legacy AES provider adaptation and local NIST-vector checks are described
-in [AES.md](AES.md); full compile and next phone test remain pending.
+in [AES.md](AES.md). Full compile42287672552 passed; the 150-second host control
+now reaches IOMedia/Apple_HFS root-device waiting without a visible panic.
+Image0008 is verified and prepared; the next phone test remains pending.
 
 ## Earlier bring-up history
 
