@@ -3,5 +3,13 @@
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-05",
-  "full_kernel_build": "pending"
+  "full_kernel_build": "passed",
+  "latest_verified_build": {
+    "run_id": 42165337842,
+    "source_commit": "1574a19bf2b95dc2563a1a3d89a81ff99e77b223",
+    "kernel_sha256": "68f974e4e99fe2c0987a5f5529996322ff59f25b02cc723cb57854839560a219",
+    "download_verification": "passed",
+    "hardware_boot_attempted": false,
+    "ios_userland_included": false
+  }
 }

@@ -130,9 +130,11 @@ or replace the previous log.
 An OKAY response establishes image acceptance only; the visible probe output
 is the independent execution observation. Actual 16K mappings now pass on the
 boot CPU. Ramoops recovery, upper RAM and secondary CPUs remain unproven.
-The initial single-CPU XNU source/loader/ADT adaptation and a manual Actions
-workflow are prepared; see xnu/README.md and xnu/BRINGUP.md. Local checks pass;
-the complete macOS kernel build and first XNU boot remain pending.
+The initial single-CPU XNU source/loader/ADT adaptation passed the complete
+macOS build and payload validation in [Actions run #3](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42165337842),
+source commit `1574a19bf2b95dc2563a1a3d89a81ff99e77b223`.
+Downloaded kernel/payload/ADT checksums and identities were independently
+verified; see xnu/README.md and xnu/BRINGUP.md. The first XNU boot remains pending.
 UFS, SPI touch, SMP and
 display services for iOS remain to be ported. The original SWEET
 kernel's hard-coded display addresses and peripheral drivers are not ported.

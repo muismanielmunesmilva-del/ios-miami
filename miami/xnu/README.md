@@ -1,8 +1,10 @@
 # MIAMI: initial XNU build for Motorola Edge 30 Neo
 
 This is a single-CPU adaptation based on ios-sweet. Probe V5 confirmed 16K
-translation and timer IRQs on the boot CPU. The full XNU kernel has not yet
-been compiled in CI or booted on miami. This package has no iOS installation.
+translation and timer IRQs on the boot CPU. The full XNU kernel compiled,
+linked and passed payload validation in [Actions run #3](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42165337842)
+at source commit `1574a19bf2b95dc2563a1a3d89a81ff99e77b223`.
+It has not been booted on miami. This package has no iOS installation.
 Read [BRINGUP.md](BRINGUP.md) for implementation details and limitations.
 
 ## GitHub Actions
@@ -30,9 +32,17 @@ toolchain information. Failure diagnostics are in miami-xnu-diagnostics;
 their existence alone does not establish success. Retention is seven days.
 
 The build selects macOS 15/Xcode 16.4 and pinned xnu-8796.141.3. A kernel-only
-IORPC adaptation handles the newer iig field; a full CI build must still
-verify SDK/generator compatibility. No full CI run has occurred yet.
+IORPC adaptation handles the newer iig field; the full CI compile/link now
+passes with that SDK/generator. Source preparation supports the helper's
+Python 3.9.6. Packaging accepts Apple's bounded, read-only, file-only __CTF
+debug metadata without copying it into kernel RAM; regression checks pass.
 The workflow needs no phone connection and uses a read-only GITHUB_TOKEN.
+
+Verified kernel: 15,883,864 bytes, SHA-256
+`68f974e4e99fe2c0987a5f5529996322ff59f25b02cc723cb57854839560a219`.
+The downloaded artifact's checksums, source commit, arm64 architecture and
+embedded MIAMI ADT were independently verified. Compilation and payload
+checks do not establish hardware boot success.
 
 ## Local checks (Linux or WSL)
 
@@ -73,4 +83,3 @@ temporary phone test. The selected upper RAM remains physically untested.
 
 Original inspiration:
 [ios-sweet](https://github.com/dipa-studio/ios-sweet/tree/45263bee51df4a0f55cdf9c649af886399488ddb).
-
