@@ -44,7 +44,12 @@ offsets come from genassym; they touch no clock or storage registers.
 
 The markers use x8..x13 only and make no function call or stack access. Later
 console output can overwrite them. Source checks and a fresh full kernel build
-must pass before this diagnostic is booted on the phone.
+must pass before this diagnostic is booted on the phone. These checks now PASS
+in [Intel run 42198284206](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42198284206),
+commit `cdd0f604e5fe08b7e9e7e2a57539a0ec2ff37f2c`. Independent artifact and linked
+table checks pass; QEMU reaches console initialization through the marker path
+before its target-MMIO panic. Real image 0004 is packaged and verified; its
+hardware test is pending the user's return to the bootloader.
 
 ## Adaptation
 

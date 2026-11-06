@@ -5,10 +5,13 @@
   "date_local": "2026-11-05",
   "full_kernel_build": "passed",
   "latest_verified_build": {
-    "run_id": 42165337842,
-    "source_commit": "1574a19bf2b95dc2563a1a3d89a81ff99e77b223",
-    "kernel_sha256": "68f974e4e99fe2c0987a5f5529996322ff59f25b02cc723cb57854839560a219",
+    "run_id": 42198284206,
+    "source_commit": "cdd0f604e5fe08b7e9e7e2a57539a0ec2ff37f2c",
+    "date_local": "2026-11-06",
+    "kernel_sha256": "a05028b955f6bb64d1b2e2e535c6e82706af311ff0d53150dfb1d72a3a6fa354",
     "download_verification": "passed",
+    "linked_table_storage_verification": "passed",
+    "qemu_result": "console initialized; target GIC MMIO panic, not a full boot",
     "hardware_boot_attempted": false,
     "ios_userland_included": false
   }

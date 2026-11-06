@@ -2,16 +2,17 @@
 
 This is a single-CPU adaptation based on ios-sweet. Probe V5 confirmed 16K
 translation and timer IRQs on the boot CPU. The full XNU kernel compiled,
-linked and passed payload validation in [Actions run #3](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42165337842)
-at source commit `1574a19bf2b95dc2563a1a3d89a81ff99e77b223`.
+linked and passed payload validation in [the latest Intel-hosted Actions run](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42198284206)
+at source commit `cdd0f604e5fe08b7e9e7e2a57539a0ec2ff37f2c`.
 It has not been booted on miami. This package has no iOS installation.
 Temporary loader 0002 reached the pre-branch marker after copying all kernel
 segments. That first kernel has a confirmed splash-table alignment defect;
 source now aligns overallocated table storage at runtime. The corrected full
 build passed in run 42192773280 and progressed through console initialization
 in QEMU. Hardware image 0003 still stops at the pre-branch message. The next
-diagnostic adds loader readback checks and seven early-entry visual markers;
-XNU-generated hardware output remains unconfirmed.
+diagnostic adds loader readback checks and seven early-entry visual markers.
+It now passes the full build and host bootstrap observation; its image 0004
+is prepared for temporary testing. XNU-generated hardware output remains unconfirmed.
 Read [BRINGUP.md](BRINGUP.md) for implementation details and limitations.
 
 ## GitHub Actions
@@ -45,11 +46,15 @@ Python 3.9.6. Packaging accepts Apple's bounded, read-only, file-only __CTF
 debug metadata without copying it into kernel RAM; regression checks pass.
 The workflow needs no phone connection and uses a read-only GITHUB_TOKEN.
 
-Verified kernel: 15,883,864 bytes, SHA-256
-`68f974e4e99fe2c0987a5f5529996322ff59f25b02cc723cb57854839560a219`.
+Verified latest kernel: 15,883,920 bytes, SHA-256
+`a05028b955f6bb64d1b2e2e535c6e82706af311ff0d53150dfb1d72a3a6fa354`.
 The downloaded artifact's checksums, source commit, arm64 architecture and
 embedded MIAMI ADT were independently verified. Compilation and payload
 checks do not establish hardware boot success.
+
+The optional `miami-xnu-intel.yml` workflow uses the documented macOS 15 Intel
+runner and the same Xcode 16.4/ARM64 target when the standard ARM runner queues.
+Both require preinstalled selected Xcode and avoid the unused xcodes installer.
 
 ## Local checks (Linux or WSL)
 
