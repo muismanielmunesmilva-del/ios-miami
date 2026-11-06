@@ -50,6 +50,7 @@ def check(source, helper, pthread):
                        env={**os.environ, 'PATH': str(tools) + ':/usr/bin:/bin',
                             'DEVELOPER_DIR': str(developer)})
     run(sys.executable, ROOT / 'xnu/prepare.py', source, '--pthread', pthread)
+    run(sys.executable, ROOT / 'tests/check-panic.py', source)
     shims = (source / 'bsd/pthread/pthread_shims.c').read_text()
     assert 'panic("pthread kernel extension not loaded (function table is NULL).");' in shims
     assert 'MIAMI PTHREAD: kernel initialization complete' in shims

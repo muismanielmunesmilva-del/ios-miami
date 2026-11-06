@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import mkadt
 import pthread_component
+import panic_screen
 
 APPLE_COMMIT = '1b191cb58250d0705d8a51287127505aa4bc0789'
 PORT = Path(__file__).resolve().parents[2]
@@ -175,9 +176,11 @@ miami_early_configure(uint64_t base, uint64_t row_bytes)
         target = tree / path
         if '0x9c000000' in CACHE.get(target, target.read_text()).lower():
             raise ValueError(f'{path}: SWEET framebuffer address remains')
+    panic_screen.stage(tree, edit)
     result = {'apple_commit': APPLE_COMMIT, 'machine': 'MIAMI', 'max_cpus': 1,
               'required_patches': applied, 'splash': ['0x85200000', '0x85e00000'],
-              'storage_drivers_staged': False, 'iig_abi': 'kernelContent backport; compile verification pending'}
+              'storage_drivers_staged': False, 'iig_abi': 'kernelContent backport; compile verification pending',
+              'panic_screen': 'first panic saved state or generic reason; 18 protected rows'}
     for target, text in CACHE.items():
         target.write_bytes(text.encode('utf-8'))
     result['pthread'] = pthread_component.stage(tree, pthread_source)

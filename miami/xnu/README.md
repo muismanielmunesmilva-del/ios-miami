@@ -26,7 +26,9 @@ build integrates Apple's matching pthread kernel implementation; read
 [PTHREAD.md](PTHREAD.md). Full compilation/link and independent artifact checks
 passed. Host control registers callbacks and subsequently reaches TCP init,
 after the real pthread initialization. A later AES data abort remains.
-Temporary image 0006 is prepared; its hardware result is pending.
+Temporary image 0006 was accepted by fastboot. Its photo shows a panic report
+with the verified kernel UUID; the cause and phone pthread completion remain
+unconfirmed because the reason, exception registers and backtrace are not visible.
 Read [BRINGUP.md](BRINGUP.md) for implementation details and limitations.
 
 ## GitHub Actions

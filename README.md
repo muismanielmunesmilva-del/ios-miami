@@ -6,7 +6,9 @@ The pthread integration passed every gate in [Actions run 42239849041](https://g
 
 The host-only virtual GIC/timer control shows pthread callback registration and CPU/SGI1 completion. After XNU's 30-second RTC-service wait, its later domaininit/tcp_init backtrace establishes return from pthread_init by source call ordering; the completion line was overwritten. The control then aborts in aes_encrypt_key128+0x10 (ESR 0x96000005, FAR 0x78). The crypto provider is the next dependency to investigate. This is not a full boot or a phone result.
 
-On the phone, image 0004's photograph confirms XNU console, platform expert and VM bootstrap progress. Image 0005's user report confirms CPU/SGI1 progress, followed by a photograph whose backtrace identifies the previous missing pthread-table guard; the panic header is outside the photo. Image 0006 is now packaged and independently verified for temporary testing, with its hardware result pending. iOS userland has not started.
+On the phone, image 0004's photograph confirms XNU console, platform expert and VM bootstrap progress. Image 0005's user report confirms CPU/SGI1 progress, followed by a photograph whose backtrace identifies the previous missing pthread-table guard; the panic header is outside the photo. Image 0006 was accepted by temporary fastboot boot; its photograph confirms XNU panic output with the exact verified kernel UUID. The reason, exception registers and backtrace are absent, so its cause and phone pthread completion remain unproven. iOS userland has not started.
+
+The next diagnostic preserves the first panic reason and valid saved exception registers in 18 protected framebuffer rows. Host pixel/console regression tests and isolated Darwin arm64 compilation pass; its full Actions build and physical test are pending. See [diagnostic design and checks](miami/xnu/PANIC-SCREEN.md).
 
 - [Build instructions](miami/xnu/README.md)
 - [Pthread matching, integration and results](miami/xnu/PTHREAD.md)

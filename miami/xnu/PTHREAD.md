@@ -68,5 +68,12 @@ aes_encrypt_key128+0x10 (ESR 0x96000005, FAR 0x78), called for TCP Fast Open.
 The g_crypto_funcs provider is the next dependency to investigate. This is not
 a full boot or a hardware result for image 0006.
 
+Image 0006 was subsequently accepted by temporary fastboot boot (send 2.281s,
+boot 10.487s). Its phone photograph shows a panic report with UUID
+AA615D30-075F-3DC8-A494-5AC198E201E6, matching the verified binary's LC_UUID.
+Only the middle metadata/zone dump is visible; the reason, exception registers
+and backtrace are absent from that photograph. Phone pthread completion and
+the phone panic cause remain unconfirmed; the QEMU AES fault is separate evidence.
+
 This remains a single-CPU bring-up. No storage, USB, touch or SMP driver is
 added, and testing uses temporary fastboot boot images while preserving Android.

@@ -1,5 +1,5 @@
 {
-  "local_source_commit": "ed966b35233408ac5f783ceccbdad8b07a674688",
+  "local_source_commit": "a590652",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-06",
@@ -20,10 +20,12 @@
       "real_implementation_and_panic_guards": true
     },
     "qemu_result": "Callbacks registered; later domaininit/tcp_init establishes return from pthread_init by source call ordering. Later AES data abort PC 0xfffffe00078f5a88 ESR 0x96000005 FAR 0x78; not a full boot.",
-    "hardware_boot_attempted": false,
+    "hardware_boot_attempted": true,
     "ios_userland_included": false,
     "prepared_test_image": "0006",
-    "prepared_boot_sha256": "3353a82039d51db5ba2ab6b76effeb8dcbf2f8af63221edae10f973ba151227c"
+    "prepared_boot_sha256": "3353a82039d51db5ba2ab6b76effeb8dcbf2f8af63221edae10f973ba151227c",
+    "hardware_result": "0006 photograph confirms XNU panic output and matching UUID AA615D30-075F-3DC8-A494-5AC198E201E6; reason/registers/backtrace absent; cause unknown; phone pthread completion unproven.",
+    "photo_sha256": "9321092c88c5739237fc88b5d78833cbd2d4f387fcbc5cc807d4de2325907aed"
   },
   "previous_hardware_result": {
     "image": "0005",
@@ -31,5 +33,5 @@
     "result": "User reports CPU/SGI1 completion; later photo shows pthread_init/bsd_init panic backtrace. Reason header is outside frame.",
     "photo_sha256": "51ec9a845b7ded252f237b8a89b817712a861300ea68eb6ac5d83251ff7e55d3"
   },
-  "next_dependency": "Investigate real g_crypto_funcs AES provider; no crypto fix included in image 0006"
+  "next_dependency": "Compile first-panic protected display diagnostic, verify artifact/host control, prepare temporary image 0007. Host AES-provider dependency remains; phone cause unknown."
 }
