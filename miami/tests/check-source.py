@@ -4,6 +4,7 @@ console as Darwin arm64 C with minimal declarations for external kernel APIs.
 This is not a replacement for compiling XNU with its generated headers.
 """
 import argparse
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -22,6 +23,29 @@ def check(source, helper):
     assert configured.count('python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py"') == 1
     assert configured.index('    get_xnu\n') < configured.index('    python3 "${MIAMI_PORT_ROOT}') < configured.index('    patches\n')
     run('bash', '-n', helper / 'build.sh')
+    # Run the actual helper dependency function with all build tools present,
+    # selected Xcode, no xcodes installer, and a brew stub that must not run.
+    with tempfile.TemporaryDirectory(prefix='miami-selected-xcode-') as folder:
+        temp = Path(folder)
+        tools = temp / 'bin'
+        tools.mkdir()
+        developer = temp / 'Xcode.app/Contents/Developer'
+        developer.mkdir(parents=True)
+        for name in ('jq', 'gum', 'cmake', 'ninja', 'xcode-select'):
+            target = tools / name
+            target.write_text('#!/bin/sh\nexit 0\n')
+            target.chmod(0o755)
+        target = tools / 'brew'
+        target.write_text('#!/bin/sh\necho "Unexpected installer attempt" >&2\nexit 42\n')
+        target.chmod(0o755)
+        first = configured.index('install_deps() {\n')
+        last = configured.index('\n}\n', first) + len('\n}\n')
+        script = temp / 'dependencies.sh'
+        script.write_text('set -eu\ninfo() { :; }\nerror() { echo "$*" >&2; }\nBUILDKC=0\n' +
+                          configured[first:last] + '\ninstall_deps\n')
+        subprocess.run(['bash', str(script)], check=True,
+                       env={**os.environ, 'PATH': str(tools) + ':/usr/bin:/bin',
+                            'DEVELOPER_DIR': str(developer)})
     run(sys.executable, ROOT / 'xnu/prepare.py', source)
     board = (source / 'pexpert/pexpert/arm64/board_config.h').read_text()
     target = board.split('#ifdef ARM64_BOARD_CONFIG_MIAMI\n', 1)[1].split('#endif', 1)[0]

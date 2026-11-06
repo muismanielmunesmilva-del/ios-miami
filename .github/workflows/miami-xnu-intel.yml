@@ -68,7 +68,7 @@ jobs:
           xcrun --find iig | tee -a toolchain.txt
           xcrun clang --version >> toolchain.txt
           sw_vers >> toolchain.txt
-          brew install jq gum bash cmake ninja xcodes
+          brew install jq gum bash cmake ninja
       - name: Fetch pinned helper and Apple kernel
         run: |
           git init -q dxb
@@ -137,4 +137,3 @@ jobs:
           path: out/
           if-no-files-found: error
           retention-days: 7
-
