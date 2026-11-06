@@ -4,7 +4,17 @@ Status, 2026-11-05: [Actions run #3](https://github.com/muismanielmunesmilva-del
 passed validation, full macOS compile/link, real payload validation and upload
 at source commit `1574a19bf2b95dc2563a1a3d89a81ff99e77b223`.
 The artifact was downloaded and its checksums and identities independently
-verified. XNU has not been booted on the phone.
+verified. The later image 0004 photo now confirms XNU console execution on the
+phone, platform expert registration, VM bootstrap completion and IOMD ownership
+initialization. The user reports a stationary screen without panic; this is not
+a complete boot. The final subsystem-line prefix is not fully legible.
+
+CPU personality audit found an inherited qcom,kryo470 match while our CPU ADT
+published ARM,v8. The correction uses a shared arm,cortex-a55 compatible derived
+from the measured boot CPU MIDR, retaining ARM,v8 as fallback. Only the match
+string and diagnostic CPU name change; one-CPU, topology and SGI self-test checks
+remain active. This is a concrete mismatch, not proof of the stall's cause.
+Apple's existing startup_debug=1 boot argument adds the next-stage logs.
 
 Temporary image 0002 subsequently reached its pre-XNU-branch message on the
 phone: all three loader validators returned 0 and segment copy markers 0..9
@@ -49,7 +59,9 @@ in [Intel run 42198284206](https://github.com/muismanielmunesmilva-del/ios-miami
 commit `cdd0f604e5fe08b7e9e7e2a57539a0ec2ff37f2c`. Independent artifact and linked
 table checks pass; QEMU reaches console initialization through the marker path
 before its target-MMIO panic. Real image 0004 is packaged and verified; its
-hardware test is pending the user's return to the bootloader.
+hardware photo now confirms progress through VM bootstrap. Readback guards must
+have passed by control flow, but their numeric lines and the early blocks were
+overwritten before the photo and are not independent transcriptions.
 
 ## Adaptation
 

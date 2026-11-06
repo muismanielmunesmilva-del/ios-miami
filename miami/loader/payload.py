@@ -13,7 +13,7 @@ import mkadt
 import mkpayload
 import adt
 
-CMDLINE = 'debug=0xc serial=3 cpus=1 keepsyms=1 -enable_kprintf_spam -noprogress'
+CMDLINE = 'debug=0xc serial=3 cpus=1 keepsyms=1 startup_debug=1 -enable_kprintf_spam -noprogress'
 
 
 def package(kernel, output):
@@ -72,4 +72,3 @@ if __name__ == '__main__':
     parser.add_argument('output', type=Path)
     args = parser.parse_args()
     package(args.kernel, args.output)
-

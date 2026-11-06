@@ -16,6 +16,7 @@ import adt
 RAM_BASE, RAM_TOTAL, PANIC_SIZE = 0x180000000, 0x40000000, 0x100000
 RAM_SIZE = RAM_TOTAL - PANIC_SIZE
 SOC_BASE = 0x01000000
+BOOT_CPU_COMPAT = 'arm,cortex-a55'  # MIDR 0x412fd050 measured on the boot CPU
 
 
 def u32(*values):
@@ -45,7 +46,7 @@ def build(seed=None):
                   ('random-seed', seed), ('debug-enabled', u32(1)),
                   ('embedded-panic-log-size', u32(PANIC_SIZE)),
                   ('firmware-version', cstr('miami-loader'))], [node('memory-map')])
-    cpu = node('cpu0', [('device_type', cstr('cpu')), ('compatible', cstr('ARM,v8')),
+    cpu = node('cpu0', [('device_type', cstr('cpu')), ('compatible', cstr(BOOT_CPU_COMPAT) + cstr('ARM,v8')),
                ('reg', u32(0)), ('cpu-id', u32(0)), ('cluster-id', u32(0)),
                ('cluster-type', u32(0)), ('die-cluster-id', u32(0)),
                ('cluster-core-id', u32(0)), ('l2-cache-id', u32(0)), ('l3-cache-id', u32(0)),

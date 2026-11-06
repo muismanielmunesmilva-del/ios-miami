@@ -11,6 +11,8 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'xnu'))
+import mkadt
 
 
 def run(*args):
@@ -50,6 +52,18 @@ def check(source, helper):
     board = (source / 'pexpert/pexpert/arm64/board_config.h').read_text()
     target = board.split('#ifdef ARM64_BOARD_CONFIG_MIAMI\n', 1)[1].split('#endif', 1)[0]
     assert '#define MAX_CPUS                       1\n' in target
+    tree = mkadt.build(seed=bytes(64))
+    cpus = next(n for n in tree.children if n.name == 'cpus')
+    assert len(cpus.children) == 1
+    cpu_compatibles = cpus.children[0].prop('compatible').split(b'\0')
+    assert mkadt.BOOT_CPU_COMPAT.encode() in cpu_compatibles
+    catalog = (source / 'iokit/KernelConfigTables.cpp').read_text()
+    assert "'IONameMatch'     = '%s';" % mkadt.BOOT_CPU_COMPAT in catalog
+    assert "'IONameMatch'     = 'qcom,kryo470';" not in catalog
+    cpu_driver = (source / 'iokit/Kernel/arm/SweetCPU.cpp').read_text()
+    assert '"Cortex-A55"' in cpu_driver
+    assert 'topology->num_cpus != 1' in cpu_driver
+    assert 'SGI1 self-test timed out' in cpu_driver
     assert not (source / 'bsd/dev/miami_ufs.c').exists()
     assert not (source / 'bsd/dev/miami_usb.c').exists()
     for name in ('osfmk/arm64/start.s', 'osfmk/arm64/arm_vm_init.c', 'osfmk/arm64/miami_early.c'):
@@ -69,7 +83,7 @@ def check(source, helper):
             '-isystem', Path(resource) / 'include', '-I', temp, '-I', source / 'osfmk',
             '-O2', '-Wall', '-Wextra', '-Werror', '-mgeneral-regs-only', '-c',
             source / 'osfmk/arm64/miami_early.c', '-o', temp / 'early.o')
-    print('PASS: fresh 18-patch MIAMI staging; MAX_CPUS=1; no inherited framebuffer address; '
+    print('PASS: fresh 18-patch MIAMI staging; MAX_CPUS=1; ADT/IOCPU matching consistent; no inherited framebuffer address; '
           'helper hook order; kernelContent sites; actual early console Darwin arm64 compile')
 
 

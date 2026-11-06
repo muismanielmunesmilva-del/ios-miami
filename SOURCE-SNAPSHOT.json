@@ -12,7 +12,9 @@
     "download_verification": "passed",
     "linked_table_storage_verification": "passed",
     "qemu_result": "console initialized; target GIC MMIO panic, not a full boot",
-    "hardware_boot_attempted": false,
-    "ios_userland_included": false
+    "hardware_boot_attempted": true,
+    "ios_userland_included": false,
+    "hardware_result": "Image 0004 photo confirms XNU console, platform expert registration and VM bootstrap completion; stationary without visible panic, not a complete boot",
+    "photo_sha256": "80899484241ca3a6860aec5a044056781684b85d4c59779ec6684a44408255a8"
   }
 }

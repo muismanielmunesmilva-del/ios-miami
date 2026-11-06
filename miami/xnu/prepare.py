@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import mkadt
 
 APPLE_COMMIT = '1b191cb58250d0705d8a51287127505aa4bc0789'
 PORT = Path(__file__).resolve().parents[2]
@@ -77,6 +78,12 @@ def prepare(tree):
     edit(tree, 'pexpert/pexpert/arm64/MIAMI.h',
          'Kryo 470 = Cortex-A76 + Cortex-A55, ARMv8.2, no PAC.',
          'Boot CPU: Cortex-A55 r2p0, ARMv8.2, no PAC; secondary CPUs disabled.')
+    # The legacy IOCPU driver must match the CPU nub emitted by our own ADT,
+    # rather than the inherited Redmi compatible. Keep its topology/SGI checks.
+    edit(tree, 'iokit/KernelConfigTables.cpp',
+         "'IONameMatch'     = 'qcom,kryo470';",
+         "'IONameMatch'     = '%s';" % mkadt.BOOT_CPU_COMPAT)
+    edit(tree, 'iokit/Kernel/arm/SweetCPU.cpp', '"Kryo 470"', '"Cortex-A55"')
     # Xcode 16 iig's additional kernel-only field matches Apple's later IORPC
     # header. Keep old Mach-message validation and populate the field before
     # reaching generated Dispatch methods; all kernel objects rebuild together.

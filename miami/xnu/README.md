@@ -4,7 +4,9 @@ This is a single-CPU adaptation based on ios-sweet. Probe V5 confirmed 16K
 translation and timer IRQs on the boot CPU. The full XNU kernel compiled,
 linked and passed payload validation in [the latest Intel-hosted Actions run](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42198284206)
 at source commit `cdd0f604e5fe08b7e9e7e2a57539a0ec2ff37f2c`.
-It has not been booted on miami. This package has no iOS installation.
+The user's image 0004 photograph now confirms XNU execution on miami, platform
+expert registration and VM bootstrap completion. It stops without a visible
+panic; a complete kernel boot and iOS installation remain unconfirmed.
 Temporary loader 0002 reached the pre-branch marker after copying all kernel
 segments. That first kernel has a confirmed splash-table alignment defect;
 source now aligns overallocated table storage at runtime. The corrected full
@@ -12,7 +14,9 @@ build passed in run 42192773280 and progressed through console initialization
 in QEMU. Hardware image 0003 still stops at the pre-branch message. The next
 diagnostic adds loader readback checks and seven early-entry visual markers.
 It now passes the full build and host bootstrap observation; its image 0004
-is prepared for temporary testing. XNU-generated hardware output remains unconfirmed.
+produced XNU-generated hardware output in image 0004. The next source correction
+matches the CPU driver to the measured Cortex-A55 ADT node and enables Apple's
+startup_debug=1 diagnostics; its build/hardware result is still pending.
 Read [BRINGUP.md](BRINGUP.md) for implementation details and limitations.
 
 ## GitHub Actions
@@ -52,8 +56,9 @@ The downloaded artifact's checksums, source commit, arm64 architecture and
 embedded MIAMI ADT were independently verified. Compilation and payload
 checks do not establish hardware boot success.
 
-The optional `miami-xnu-intel.yml` workflow uses the documented macOS 15 Intel
-runner and the same Xcode 16.4/ARM64 target when the standard ARM runner queues.
+The main workflow now uses the documented macOS 15 Intel runner and the same
+Xcode 16.4/ARM64 target that already passed. The optional `miami-xnu-intel.yml`
+remains available for manual builds and its own workflow changes.
 Both require preinstalled selected Xcode and avoid the unused xcodes installer.
 
 ## Local checks (Linux or WSL)

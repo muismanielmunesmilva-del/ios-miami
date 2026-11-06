@@ -1,0 +1,23 @@
+{
+  "image_id": "MIAMI_XNU_0004",
+  "kernel_commit": "cdd0f604e5fe08b7e9e7e2a57539a0ec2ff37f2c",
+  "kernel_sha256": "a05028b955f6bb64d1b2e2e535c6e82706af311ff0d53150dfb1d72a3a6fa354",
+  "boot_image_sha256": "e3b9cb861ddc7df63ba91c1047fb9a3d70364e1a0e916400c5eb2587f305c8b8",
+  "photo_sha256": "80899484241ca3a6860aec5a044056781684b85d4c59779ec6684a44408255a8",
+  "evidence": "user photograph and report that the screen stopped without panic",
+  "visible_lines": [
+    "MIAMI: starting device-tree platform expert",
+    "MIAMI: platform expert registered",
+    "VM bootstrap done: 85 maps, 165 entries and 503 holes left",
+    "IOKit IOMD setownership ENABLED"
+  ],
+  "last_visible_suffix": "subsystem is initialized",
+  "last_line_prefix": "not fully legible in photograph",
+  "source_inference": "ATM initialization follows the visible IOMD message in kernel_bootstrap, but the photo's final prefix is not independently transcribed",
+  "xnu_execution_confirmed": true,
+  "loader_readback": "Success inferred from control flow: the observed kernel output is after both readback guards; numerical lines were overwritten and are not visible in this photo",
+  "panic_visible": false,
+  "complete_boot_confirmed": false,
+  "ios_userland_started": false,
+  "limitations": "A still photograph does not identify the current program counter or establish CPU-driver registration, scheduler startup, IRQ delivery within XNU, SMP, storage, touch, or a complete memory test."
+}
