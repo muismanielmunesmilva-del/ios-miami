@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import subprocess
 import mkadt
+import pthread_component
 
 APPLE_COMMIT = '1b191cb58250d0705d8a51287127505aa4bc0789'
 PORT = Path(__file__).resolve().parents[2]
@@ -41,7 +42,7 @@ def section(tree, path, begin, end, replacement):
     edit(tree, path, text[first:last], replacement)
 
 
-def prepare(tree):
+def prepare(tree, pthread_source):
     tree = tree.resolve()
     manifest = tree.parent / 'miami-source.json'
     if manifest.exists():
@@ -179,6 +180,7 @@ miami_early_configure(uint64_t base, uint64_t row_bytes)
               'storage_drivers_staged': False, 'iig_abi': 'kernelContent backport; compile verification pending'}
     for target, text in CACHE.items():
         target.write_bytes(text.encode('utf-8'))
+    result['pthread'] = pthread_component.stage(tree, pthread_source)
     manifest.write_text(json.dumps(result, indent=2) + '\n')
     print(f'MIAMI: {len(applied)} required patches and target edits staged; MAX_CPUS=1')
 
@@ -186,4 +188,6 @@ miami_early_configure(uint64_t base, uint64_t row_bytes)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('apple_tree', type=Path)
-    prepare(parser.parse_args().apple_tree)
+    parser.add_argument('--pthread', required=True, type=Path)
+    args = parser.parse_args()
+    prepare(args.apple_tree, args.pthread.resolve())

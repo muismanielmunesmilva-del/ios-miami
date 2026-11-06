@@ -2,8 +2,8 @@
 
 This is a single-CPU adaptation based on ios-sweet. Probe V5 confirmed 16K
 translation and timer IRQs on the boot CPU. The full XNU kernel compiled,
-linked and passed payload validation in [the latest Intel-hosted Actions run](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42198284206)
-at source commit `cdd0f604e5fe08b7e9e7e2a57539a0ec2ff37f2c`.
+linked and passed payload validation in [the latest Intel-hosted Actions run](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42202366971)
+at source commit `a98a0f89afc60886943faf9436ef313ccc360525` (attempt 2).
 The user's image 0004 photograph now confirms XNU execution on miami, platform
 expert registration and VM bootstrap completion. It stops without a visible
 panic; a complete kernel boot and iOS installation remain unconfirmed.
@@ -16,7 +16,14 @@ diagnostic adds loader readback checks and seven early-entry visual markers.
 It now passes the full build and host bootstrap observation; its image 0004
 produced XNU-generated hardware output in image 0004. The next source correction
 matches the CPU driver to the measured Cortex-A55 ADT node and enables Apple's
-startup_debug=1 diagnostics; its build/hardware result is still pending.
+startup_debug=1 diagnostics. This build passed; the user now reports the
+MIAMI CPU / SGI1 verified message on temporary image 0005. This establishes
+the reported single-CPU milestone, not a complete boot or iOS userland.
+The subsequent photo of 0005 shows a panic backtrace through pthread_init and
+bsd_init. Its panic header is outside the photograph. The exact kernel's LR-4
+callsites identify the guard for a missing pthread function table. The next
+build integrates Apple's matching pthread kernel implementation; read
+[PTHREAD.md](PTHREAD.md). Build and runtime results for that integration are pending.
 Read [BRINGUP.md](BRINGUP.md) for implementation details and limitations.
 
 ## GitHub Actions
@@ -51,14 +58,14 @@ debug metadata without copying it into kernel RAM; regression checks pass.
 The workflow needs no phone connection and uses a read-only GITHUB_TOKEN.
 
 Verified latest kernel: 15,883,920 bytes, SHA-256
-`a05028b955f6bb64d1b2e2e535c6e82706af311ff0d53150dfb1d72a3a6fa354`.
+`1eccaf12b8dec4a9e61d6940b730efc5a5d2d6a52637451cbd45114d1af99107`.
 The downloaded artifact's checksums, source commit, arm64 architecture and
 embedded MIAMI ADT were independently verified. Compilation and payload
 checks do not establish hardware boot success.
 
 The main workflow now uses the documented macOS 15 Intel runner and the same
 Xcode 16.4/ARM64 target that already passed. The optional `miami-xnu-intel.yml`
-remains available for manual builds and its own workflow changes.
+now runs only on manual dispatch, avoiding duplicate builds.
 Both require preinstalled selected Xcode and avoid the unused xcodes installer.
 
 ## Local checks (Linux or WSL)
@@ -75,10 +82,11 @@ python3 miami/tests/check-console.py
 
 For source checks, provide fresh checkouts of Apple XNU commit
 1b191cb58250d0705d8a51287127505aa4bc0789 and build-helper commit
-663906528d1cd5ea8fde7de6f16de73db9511549. This changes those checkouts:
+663906528d1cd5ea8fde7de6f16de73db9511549, plus libpthread commit
+a6c70ca0e544347a0377babf748f831577ec24f9. This changes the XNU/helper checkouts:
 
 ```sh
-python3 miami/tests/check-source.py --source /path/to/fresh/xnu --helper /path/to/fresh/helper
+python3 miami/tests/check-source.py --source /path/to/fresh/xnu --helper /path/to/fresh/helper --pthread /path/to/pinned/libpthread
 ```
 
 Loader tests use a synthetic Mach-O and compile-only mode. Their output is
@@ -96,7 +104,8 @@ bash miami/loader/build.sh /path/to/kernel.development.miami /path/to/dtc /path/
 This packages miami/loader/out/boot.img as boot v3 with the verified target
 header conventions and a 96-MiB AVB container. It issues no phone commands.
 Review kernel identity, build checks and final hash before planning a
-temporary phone test. The selected upper RAM remains physically untested.
+temporary phone test. Image 0004/0005 output confirms execution using the
+selected RAM bank; it does not establish a comprehensive memory test.
 
 Original inspiration:
 [ios-sweet](https://github.com/dipa-studio/ios-sweet/tree/45263bee51df4a0f55cdf9c649af886399488ddb).

@@ -16,7 +16,7 @@ def configure(root):
     old = '    get_xnu\n    patches\n'
     if text.count(old) != 1:
         raise ValueError('Helper preparation hook anchor changed')
-    text = text.replace(old, '    get_xnu\n    python3 --version\n    python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py" "${WORK_DIR}/xnu"\n    patches\n')
+    text = text.replace(old, '    get_xnu\n    python3 --version\n    python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py" "${WORK_DIR}/xnu" --pthread "${WORK_DIR}/pthread"\n    patches\n')
     old = 'ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"'
     if text.count(old) != 1:
         raise ValueError('libfirehose arm64 build anchor changed')
@@ -37,6 +37,10 @@ def configure(root):
     if text.count(old) != 1:
         raise ValueError('Installed Xcode detection anchor changed')
     text = text.replace(old, 'if [ -d "${DEVELOPER_DIR}" ]; then')
+    old = '    build_libdispatch\n'
+    if text.count(old) != 1:
+        raise ValueError('Installed-header preflight anchor changed')
+    text = text.replace(old, old + '    test -f "${FAKEROOT_DIR}/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/sys/pthread_shims.h"\n')
     path.write_bytes(text.encode('utf-8'))
     print('Pinned helper configured: required MIAMI staging and plain arm64 firehose')
 

@@ -1,20 +1,26 @@
 {
-  "local_source_commit": "ab1e7b44b7d2d9b5cfc758f458f244e3c3ae263b",
+  "local_source_commit": "3f721aa797ee2cc187aeac51b34c8484ed044298",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
-  "date_local": "2026-11-05",
-  "full_kernel_build": "passed",
+  "date_local": "2026-11-06",
+  "full_kernel_build": "last verified build passed; new pthread integration build pending",
   "latest_verified_build": {
-    "run_id": 42198284206,
-    "source_commit": "cdd0f604e5fe08b7e9e7e2a57539a0ec2ff37f2c",
-    "date_local": "2026-11-06",
-    "kernel_sha256": "a05028b955f6bb64d1b2e2e535c6e82706af311ff0d53150dfb1d72a3a6fa354",
+    "run_id": 42202366971,
+    "run_attempt": 2,
+    "source_commit": "a98a0f89afc60886943faf9436ef313ccc360525",
+    "kernel_sha256": "1eccaf12b8dec4a9e61d6940b730efc5a5d2d6a52637451cbd45114d1af99107",
     "download_verification": "passed",
     "linked_table_storage_verification": "passed",
-    "qemu_result": "console initialized; target GIC MMIO panic, not a full boot",
+    "qemu_result": "Virtual GIC/timer control shows CPU registration, SGI1 verified and BSD MAC initialization; not a hardware result or full boot",
     "hardware_boot_attempted": true,
-    "ios_userland_included": false,
-    "hardware_result": "Image 0004 photo confirms XNU console, platform expert registration and VM bootstrap completion; stationary without visible panic, not a complete boot",
-    "photo_sha256": "80899484241ca3a6860aec5a044056781684b85d4c59779ec6684a44408255a8"
+    "hardware_result": "User reports CPU/SGI1 completion; subsequent photo shows panic backtrace in pthread_init/bsd_init. Reason header not in photo; exact-symbol callsites identify missing pthread function table.",
+    "photo_sha256": "51ec9a845b7ded252f237b8a89b817712a861300ea68eb6ac5d83251ff7e55d3",
+    "ios_userland_included": false
+  },
+  "next_component": {
+    "project": "libpthread",
+    "tag": "libpthread-514.100.2",
+    "commit": "a6c70ca0e544347a0377babf748f831577ec24f9",
+    "status": "static kernel integration staged; full Apple compiler build and runtime verification pending"
   }
 }

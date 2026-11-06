@@ -2,10 +2,6 @@ name: miami-xnu-intel
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/miami-xnu-intel.yml'
 
 permissions:
   contents: read
@@ -43,8 +39,11 @@ jobs:
           git init -q "$RUNNER_TEMP/xnu-check/helper"
           git -C "$RUNNER_TEMP/xnu-check/helper" fetch -q --depth 1 https://github.com/blacktop/darwin-xnu-build.git 663906528d1cd5ea8fde7de6f16de73db9511549
           git -C "$RUNNER_TEMP/xnu-check/helper" checkout -q FETCH_HEAD
+          git init -q "$RUNNER_TEMP/xnu-check/pthread"
+          git -C "$RUNNER_TEMP/xnu-check/pthread" fetch -q --depth 1 https://github.com/apple-oss-distributions/libpthread.git a6c70ca0e544347a0377babf748f831577ec24f9
+          git -C "$RUNNER_TEMP/xnu-check/pthread" checkout -q FETCH_HEAD
       - name: Validate target source edits and early console compilation
-        run: python3 miami/tests/check-source.py --source "$RUNNER_TEMP/xnu-check/xnu" --helper "$RUNNER_TEMP/xnu-check/helper"
+        run: python3 miami/tests/check-source.py --source "$RUNNER_TEMP/xnu-check/xnu" --helper "$RUNNER_TEMP/xnu-check/helper" --pthread "$RUNNER_TEMP/xnu-check/pthread"
 
   kernel:
     needs: validate
@@ -78,6 +77,10 @@ jobs:
           git -C dxb/xnu fetch -q --depth 1 https://github.com/apple-oss-distributions/xnu.git refs/tags/xnu-8796.141.3
           git -C dxb/xnu checkout -q FETCH_HEAD
           test "$(git -C dxb/xnu rev-parse HEAD)" = 1b191cb58250d0705d8a51287127505aa4bc0789
+          git init -q dxb/pthread
+          git -C dxb/pthread fetch -q --depth 1 https://github.com/apple-oss-distributions/libpthread.git a6c70ca0e544347a0377babf748f831577ec24f9
+          git -C dxb/pthread checkout -q FETCH_HEAD
+          test "$(git -C dxb/pthread rev-parse HEAD)" = a6c70ca0e544347a0377babf748f831577ec24f9
           python3 miami/xnu/configure-helper.py dxb
           echo "MIAMI_PORT_ROOT=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
       - name: Build single-CPU MIAMI kernel
@@ -99,6 +102,10 @@ jobs:
           test -s "$KERNEL"
           xcrun lipo -info "$KERNEL" | tee out/architecture.txt
           xcrun otool -hv "$KERNEL" >> out/architecture.txt
+          xcrun nm -gU "$KERNEL" > "$RUNNER_TEMP/pthread-symbols.txt"
+          for symbol in _pthread_start _pthread_internal_functions __pthread_init __psynch_mutexwait _workq_setup_thread; do
+            grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/pthread-verification.txt
+          done
           cp "$KERNEL" out/
           python3 miami/loader/payload.py "$KERNEL" out/payload.bin
           xcrun clang -O2 -Wall -Wextra -Werror -DMIAMI_PAYLOAD_ONLY miami/loader/verify-input.c miami/loader/plan.c -o "$RUNNER_TEMP/check-payload"

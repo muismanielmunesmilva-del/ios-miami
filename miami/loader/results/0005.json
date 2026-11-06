@@ -1,0 +1,27 @@
+{
+  "image_id": "MIAMI_XNU_0005",
+  "loader_version": "0004",
+  "kernel_commit": "a98a0f89afc60886943faf9436ef313ccc360525",
+  "kernel_sha256": "1eccaf12b8dec4a9e61d6940b730efc5a5d2d6a52637451cbd45114d1af99107",
+  "boot_image_sha256": "060126e37d8728e549d0a7a0ed0d024aeb4a45c17469ff568c6e9e09b325a0be",
+  "ci_run": 42202366971,
+  "ci_attempt": 2,
+  "fastboot": {
+    "send_okay_seconds": 2.672,
+    "boot_okay_seconds": 7.488,
+    "total_seconds": 10.222
+  },
+  "evidence_kind": "user report of CPU/SGI1 message followed by photograph of kernel panic backtrace",
+  "user_report": "Apareceu a mensagem MIAMI CPU / SGI1 verified",
+  "reported_cpu_registration_and_sgi1": true,
+  "exact_complete_line_transcribed": false,
+  "next_terminal_stage": "panic during pthread_init called from bsd_init, identified using exact kernel symbols and LR-4 callsites",
+  "complete_boot_confirmed": false,
+  "ios_userland_started": false,
+  "partition_write_commands_issued": false,
+  "limitations": "Single boot CPU only. Does not establish SMP, storage, USB, touch, root filesystem or complete kernel boot. Host QEMU controls are separate evidence.",
+  "photo_sha256": "51ec9a845b7ded252f237b8a89b817712a861300ea68eb6ac5d83251ff7e55d3",
+  "panic_visible": true,
+  "panic_reason_line_visible": false,
+  "panic_reason_source_inference": "pthread function table is NULL; the exact panic header is outside the photo"
+}

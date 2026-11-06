@@ -13,13 +13,14 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'xnu'))
 import mkadt
+import pthread_component
 
 
 def run(*args):
     subprocess.run([str(x) for x in args], check=True)
 
 
-def check(source, helper):
+def check(source, helper, pthread):
     run(sys.executable, ROOT / 'xnu/configure-helper.py', helper)
     configured = (helper / 'build.sh').read_text()
     assert configured.count('python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py"') == 1
@@ -48,7 +49,21 @@ def check(source, helper):
         subprocess.run(['bash', str(script)], check=True,
                        env={**os.environ, 'PATH': str(tools) + ':/usr/bin:/bin',
                             'DEVELOPER_DIR': str(developer)})
-    run(sys.executable, ROOT / 'xnu/prepare.py', source)
+    run(sys.executable, ROOT / 'xnu/prepare.py', source, '--pthread', pthread)
+    shims = (source / 'bsd/pthread/pthread_shims.c').read_text()
+    assert 'panic("pthread kernel extension not loaded (function table is NULL).");' in shims
+    assert 'MIAMI PTHREAD: kernel initialization complete' in shims
+    init = (source / 'bsd/miami_pthread/kern/miami_pthread_init.c').read_text()
+    assert 'pthread_kext_register((pthread_functions_t)&pthread_internal_functions, &pthread_kern);' in init
+    adapter = (source / 'bsd/miami_pthread/miami_pthread_register.c').read_text()
+    assert 'STARTUP(EARLY_BOOT, STARTUP_RANK_MIDDLE, miami_pthread_register)' in adapter
+    assert 'pthread_start(NULL, NULL)' in adapter
+    assert 'pthread_functions != &pthread_internal_functions' in adapter
+    assert '-I$(FAKEROOT_DIR)/$(KPINCDIR)' in (source / 'bsd/conf/Makefile.template').read_text()
+    assert '\npthread_callbacks_t pthread_kern;' not in init
+    assert '\ncurrent_uthread(void)\n{' not in init
+    files = (source / 'bsd/conf/files.arm64').read_text()
+    assert all(name in files for name in pthread_component.SOURCES.values())
     board = (source / 'pexpert/pexpert/arm64/board_config.h').read_text()
     target = board.split('#ifdef ARM64_BOARD_CONFIG_MIAMI\n', 1)[1].split('#endif', 1)[0]
     assert '#define MAX_CPUS                       1\n' in target
@@ -91,5 +106,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True, type=Path)
     parser.add_argument('--helper', required=True, type=Path)
+    parser.add_argument('--pthread', required=True, type=Path)
     args = parser.parse_args()
-    check(args.source.resolve(), args.helper.resolve())
+    check(args.source.resolve(), args.helper.resolve(), args.pthread.resolve())
