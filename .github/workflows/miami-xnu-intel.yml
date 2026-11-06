@@ -1,0 +1,140 @@
+name: miami-xnu-intel
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/miami-xnu-intel.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miami-xnu-intel-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install host and loader tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y gcc clang gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu device-tree-compiler
+      - name: Fetch pinned read-only libfdt source
+        run: |
+          git init -q "$RUNNER_TEMP/dtc"
+          git -C "$RUNNER_TEMP/dtc" fetch -q --depth 1 https://github.com/dgibson/dtc.git 54e547173bf0f2a4cc35eba8b5738caf38b9230f
+          git -C "$RUNNER_TEMP/dtc" checkout -q FETCH_HEAD
+      - name: Validate loader bounds, ADT and reservation failures
+        run: python3 miami/tests/check.py --dtc "$RUNNER_TEMP/dtc"
+      - name: Validate bootstrap assembly and final splash mappings
+        run: python3 miami/tests/check-console.py
+      - name: Fetch pinned source for staging checks
+        run: |
+          git init -q "$RUNNER_TEMP/xnu-check/xnu"
+          git -C "$RUNNER_TEMP/xnu-check/xnu" fetch -q --depth 1 https://github.com/apple-oss-distributions/xnu.git refs/tags/xnu-8796.141.3
+          git -C "$RUNNER_TEMP/xnu-check/xnu" checkout -q FETCH_HEAD
+          git init -q "$RUNNER_TEMP/xnu-check/helper"
+          git -C "$RUNNER_TEMP/xnu-check/helper" fetch -q --depth 1 https://github.com/blacktop/darwin-xnu-build.git 663906528d1cd5ea8fde7de6f16de73db9511549
+          git -C "$RUNNER_TEMP/xnu-check/helper" checkout -q FETCH_HEAD
+      - name: Validate target source edits and early console compilation
+        run: python3 miami/tests/check-source.py --source "$RUNNER_TEMP/xnu-check/xnu" --helper "$RUNNER_TEMP/xnu-check/helper"
+
+  kernel:
+    needs: validate
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    env:
+      MACOS_VERSION: '13.5'
+      ARCH_CONFIG: ARM64
+      MACHINE_CONFIG: MIAMI
+      KERNEL_CONFIG: DEVELOPMENT
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify Xcode and install dependencies
+        run: |
+          test -d "$DEVELOPER_DIR"
+          xcodebuild -version | tee toolchain.txt
+          grep -q '^Xcode 16.4$' toolchain.txt
+          xcrun --find iig | tee -a toolchain.txt
+          xcrun clang --version >> toolchain.txt
+          sw_vers >> toolchain.txt
+          brew install jq gum bash cmake ninja xcodes
+      - name: Fetch pinned helper and Apple kernel
+        run: |
+          git init -q dxb
+          git -C dxb fetch -q --depth 1 https://github.com/blacktop/darwin-xnu-build.git 663906528d1cd5ea8fde7de6f16de73db9511549
+          git -C dxb checkout -q FETCH_HEAD
+          git init -q dxb/xnu
+          git -C dxb/xnu fetch -q --depth 1 https://github.com/apple-oss-distributions/xnu.git refs/tags/xnu-8796.141.3
+          git -C dxb/xnu checkout -q FETCH_HEAD
+          test "$(git -C dxb/xnu rev-parse HEAD)" = 1b191cb58250d0705d8a51287127505aa4bc0789
+          python3 miami/xnu/configure-helper.py dxb
+          echo "MIAMI_PORT_ROOT=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+      - name: Build single-CPU MIAMI kernel
+        working-directory: dxb
+        shell: bash
+        run: |
+          set -o pipefail
+          if bash build.sh > ../miami-build.log 2>&1; then
+            tail -n 30 ../miami-build.log
+          else
+            tail -n 160 ../miami-build.log
+            exit 1
+          fi
+      - name: Verify and collect kernel
+        run: |
+          exec > >(tee collect.log) 2>&1
+          mkdir -p out
+          KERNEL=dxb/fakeroot/System/Library/Kernels/kernel.development.miami
+          test -s "$KERNEL"
+          xcrun lipo -info "$KERNEL" | tee out/architecture.txt
+          xcrun otool -hv "$KERNEL" >> out/architecture.txt
+          cp "$KERNEL" out/
+          python3 miami/loader/payload.py "$KERNEL" out/payload.bin
+          xcrun clang -O2 -Wall -Wextra -Werror -DMIAMI_PAYLOAD_ONLY miami/loader/verify-input.c miami/loader/plan.c -o "$RUNNER_TEMP/check-payload"
+          "$RUNNER_TEMP/check-payload" out/payload.bin
+          cp toolchain.txt dxb/miami-source.json out/
+          git rev-parse HEAD > out/port-commit.txt
+          (cd out && shasum -a 256 kernel.development.miami payload.bin payload.adt > SHA256SUMS)
+      - name: Preserve source and generated headers after a build failure
+        if: failure()
+        run: |
+          mkdir -p ci-diagnostics
+          for directory in dxb/xnu dxb/fakeroot/usr/local/include dxb/build/xnu.obj; do
+            if test -d "$directory"; then printf '%s\n' "$directory" >> ci-diagnostics/paths.txt; fi
+          done
+          if test -s ci-diagnostics/paths.txt; then
+            tar -czf ci-diagnostics/buildtree.tgz --exclude='.git' --exclude='*.o' --exclude='*.a' --exclude='*.dSYM' --exclude='*.unstripped' -T ci-diagnostics/paths.txt
+          fi
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: miami-xnu-intel-diagnostics
+          path: |
+            miami-build.log
+            collect.log
+            toolchain.txt
+            dxb/miami-source.json
+            dxb/miami-required-patches/
+            ci-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload verified kernel
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: miami-xnu-intel-kernel
+          path: out/
+          if-no-files-found: error
+          retention-days: 7
+
