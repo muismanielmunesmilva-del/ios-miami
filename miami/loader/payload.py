@@ -37,8 +37,13 @@ def package(kernel, output):
             if size < 72:
                 raise ValueError('Short segment command')
             va, vsize, off, fsize = struct.unpack_from('<4Q', data, offset + 24)
-            _, initial = struct.unpack_from('<2I', data, offset + 56)
-            if off > len(data) or fsize > len(data) - off or fsize > vsize:
+            maximum, initial = struct.unpack_from('<2I', data, offset + 56)
+            name = data[offset + 8:offset + 24].split(b'\0')[0]
+            # Apple's ctf_insert adds read-only, file-backed __CTF metadata
+            # with zero VM size. dyld documents this non-loaded segment; the
+            # upstream payload builder already excludes all zero-VM segments.
+            file_only_ctf = name == b'__CTF' and vsize == 0 and maximum == initial == 1
+            if off > len(data) or fsize > len(data) - off or (fsize > vsize and not file_only_ctf):
                 raise ValueError('Segment file range out of bounds')
             if initial & 4:
                 executable.append((va, va + fsize))
@@ -67,3 +72,4 @@ if __name__ == '__main__':
     parser.add_argument('output', type=Path)
     args = parser.parse_args()
     package(args.kernel, args.output)
+

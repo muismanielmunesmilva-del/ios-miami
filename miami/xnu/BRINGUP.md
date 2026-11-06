@@ -44,7 +44,8 @@ required MIAMI preparation between source fetch and helper patch/header
 processing, and enables plain arm64 firehose. Applicable generic helper
 patches remain available.
 
-The manual-only `.github/workflows/miami-xnu.yml` validates on Ubuntu 24.04,
+The `.github/workflows/miami-xnu.yml` validates target-code pushes or manual
+dispatches on Ubuntu 24.04,
 then selects macOS 15/Xcode 16.4 and builds DEVELOPMENT/ARM64/MIAMI. It validates
 the real payload copy plan before uploading kernel/payload/checksum artifacts;
 failure logs are retained separately. It has no phone commands.
@@ -91,3 +92,4 @@ to package and review a temporary boot-v3/AVB image. Preserve Android.
 * [macOS 15 runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)
 * [macOS 14 retirement](https://github.blog/changelog/2026-10-01-github-actions-macos-14-runner-image-retirement/)
 * [AArch64 boot ABI](https://docs.kernel.org/arch/arm64/booting.html)
+

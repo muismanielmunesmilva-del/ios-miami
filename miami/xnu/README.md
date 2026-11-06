@@ -12,8 +12,9 @@ It includes required original patches, helper tools, target sources, tests
 and license. Device dumps, calibration, firmware, Apple userland and local
 build output are excluded.
 
-The manual-only workflow is `.github/workflows/miami-xnu.yml`, named
-`miami-xnu`. Place it on the default branch and enable Actions. Run from
+The workflow is `.github/workflows/miami-xnu.yml`, named `miami-xnu`.
+It runs on target-code pushes to main and allows manual dispatch. Place it
+on the default branch and enable Actions. Run manually from
 the Actions tab, or using an authenticated GitHub CLI:
 
 ```sh
@@ -72,3 +73,4 @@ temporary phone test. The selected upper RAM remains physically untested.
 
 Original inspiration:
 [ios-sweet](https://github.com/dipa-studio/ios-sweet/tree/45263bee51df4a0f55cdf9c649af886399488ddb).
+

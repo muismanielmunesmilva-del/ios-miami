@@ -50,6 +50,18 @@ def fixture_kernel(size=0x4000):
     return blob
 
 
+def fixture_ctf(name=b'__CTF', protections=1):
+    blob = fixture_kernel() + bytes(0x4000)
+    va = 0xfffffe0007004000
+    struct.pack_into('<II', blob, 16, 3, 72 + 72 + 288)
+    blob[104:464] = bytes(360)
+    struct.pack_into('<II16s4Q4I', blob, 104, 0x19, 72, name, va + 0x4000,
+                     0, 0x4000, 0x4000, protections, protections, 0, 0)
+    struct.pack_into('<4I', blob, 176, 5, 288, 6, 68)
+    struct.pack_into('<Q', blob, 176 + 16 + 32 * 8, va + 0x200)
+    return blob
+
+
 def check(dtc, live_fdt=None):
     dtc = dtc.resolve()
     with tempfile.TemporaryDirectory(prefix='miami-host-') as folder:
@@ -85,6 +97,20 @@ def check(dtc, live_fdt=None):
             bad = bytearray(valid)
             struct.pack_into(fmt, bad, offset, value)
             assert not accepts(bad), (offset, fmt, value)
+        ctf_kernel = temp / 'SYNTHETIC-CTF-NOT-XNU.macho'
+        ctf_kernel.write_bytes(fixture_ctf())
+        ctf_payload = temp / 'ctf.bin'
+        payload.package(ctf_kernel, ctf_payload)
+        assert accepts(ctf_payload.read_bytes())
+        assert struct.unpack_from('<I', ctf_payload.read_bytes(), 12)[0] == 1, 'CTF must not be loaded'
+        for bad in (fixture_ctf(b'__DATA'), fixture_ctf(protections=5)):
+            ctf_kernel.write_bytes(bad)
+            try:
+                payload.package(ctf_kernel, ctf_payload)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('Invalid zero-VM segment was accepted')
         root = mkadt.build(seed=bytes(range(64)))
         assert len(next(c for c in root.children if c.name == 'cpus').children) == 1
         assert all('ufs' not in c.name and 'usb' not in c.name for c in root.children)
@@ -114,7 +140,8 @@ def check(dtc, live_fdt=None):
         run('bash', PORT / 'miami/loader/build.sh', kernel, dtc, '/not-used-in-compile-only', fdt,
             env={**os.environ, 'MIAMI_COMPILE_ONLY': '1'})
         print('PASS: valid payload; 11 malformed/truncated payloads rejected; one-CPU ADT; '
-              'four reservation/bank failures rejected; >2-MiB payload loader cross-compiled and linked')
+              'file-only CTF skipped with invalid variants rejected; four reservation/bank failures rejected; '
+              '>2-MiB payload loader cross-compiled and linked')
 
 
 if __name__ == '__main__':
@@ -123,3 +150,4 @@ if __name__ == '__main__':
     parser.add_argument('--live-fdt', type=Path)
     args = parser.parse_args()
     check(args.dtc, args.live_fdt)
+

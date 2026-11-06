@@ -2,6 +2,18 @@ name: miami-xnu
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'miami/**'
+      - '!miami/**/*.md'
+      - '!miami/probe/results/**'
+      - '!miami/xnu/reference-stage.json'
+      - 'xnu/patches/**'
+      - 'tools/adt.py'
+      - 'tools/mkpayload.py'
+      - 'shim/font.h'
+      - '.github/workflows/miami-xnu.yml'
 
 permissions:
   contents: read
@@ -81,9 +93,15 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          bash build.sh 2>&1 | tee ../miami-build.log
+          if bash build.sh > ../miami-build.log 2>&1; then
+            tail -n 30 ../miami-build.log
+          else
+            tail -n 160 ../miami-build.log
+            exit 1
+          fi
       - name: Verify and collect kernel
         run: |
+          exec > >(tee collect.log) 2>&1
           mkdir -p out
           KERNEL=dxb/fakeroot/System/Library/Kernels/kernel.development.miami
           test -s "$KERNEL"
@@ -113,6 +131,7 @@ jobs:
           name: miami-xnu-diagnostics
           path: |
             miami-build.log
+            collect.log
             toolchain.txt
             dxb/miami-source.json
             dxb/miami-required-patches/
