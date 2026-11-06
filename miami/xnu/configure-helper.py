@@ -16,12 +16,12 @@ def configure(root):
     old = '    get_xnu\n    patches\n'
     if text.count(old) != 1:
         raise ValueError('Helper preparation hook anchor changed')
-    text = text.replace(old, '    get_xnu\n    python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py" "${WORK_DIR}/xnu"\n    patches\n')
+    text = text.replace(old, '    get_xnu\n    python3 --version\n    python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py" "${WORK_DIR}/xnu"\n    patches\n')
     old = 'ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"'
     if text.count(old) != 1:
         raise ValueError('libfirehose arm64 build anchor changed')
     text = text.replace(old, 'ARCHS="x86_64 arm64e arm64" VALID_ARCHS="x86_64 arm64e arm64"')
-    path.write_text(text, newline='\n')
+    path.write_bytes(text.encode('utf-8'))
     print('Pinned helper configured: required MIAMI staging and plain arm64 firehose')
 
 
@@ -29,3 +29,4 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('helper_tree', type=Path)
     configure(parser.parse_args().helper_tree.resolve())
+

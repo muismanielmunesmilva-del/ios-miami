@@ -149,7 +149,7 @@ miami_early_configure(uint64_t base, uint64_t row_bytes)
               'required_patches': applied, 'splash': ['0x85200000', '0x85e00000'],
               'storage_drivers_staged': False, 'iig_abi': 'kernelContent backport; compile verification pending'}
     for target, text in CACHE.items():
-        target.write_text(text, newline='\n')
+        target.write_bytes(text.encode('utf-8'))
     manifest.write_text(json.dumps(result, indent=2) + '\n')
     print(f'MIAMI: {len(applied)} required patches and target edits staged; MAX_CPUS=1')
 
@@ -158,3 +158,4 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('apple_tree', type=Path)
     prepare(parser.parse_args().apple_tree)
+
