@@ -7,7 +7,9 @@ initialization proves pthread_init returned by source call ordering. The
 legacy AES provider adaptation and local NIST-vector checks are described
 in [AES.md](AES.md). Full compile42287672552 passed; the 150-second host control
 now reaches IOMedia/Apple_HFS root-device waiting without a visible panic.
-Image0008 is verified and prepared; the next phone test remains pending.
+The subsequent image0008 phone photograph confirms pthread completion,
+Skywalk tests passed and the IOMedia/Apple_HFS root-device wait, with no panic
+visible. This is now a phone milestone; root mounting/userspace remain absent.
 
 ## Earlier bring-up history
 

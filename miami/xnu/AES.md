@@ -69,9 +69,13 @@ This establishes post-AES host progress, not phone success or complete boot.
 Image0008 passed real payload/live-FDT/header/AVB checks: 100,663,296 bytes,
 SHA-256 `8115cf14c36fea21efe4c411dbc4f53f8ed8eebdf6f30f95cd088b3871df893a`.
 Its temporary boot was accepted after checking one product miami and exact
-size/hash: send2.278s, boot4.011s, exit0. The screen observation is pending;
-transport does not confirm kernel execution. No root filesystem/storage driver
-is included, so root-device waiting is the expected next observation.
+size/hash: send2.278s, boot4.011s, exit0. The subsequent phone photo directly
+shows pthread initialization complete, Skywalk self-tests passed and an
+IOMedia/Apple_HFS root-device wait. No panic is visible in that snapshot.
+Photo SHA-256: `a313f7d0baf1faeb318035989223f95ded60f0d672a0f92d82c8510577c4524a`.
+The phone has advanced beyond the original AES fault by source call ordering;
+this is not a full crypto/network hardware test or complete boot. No root
+filesystem/storage driver is included. The next dependency is a root to mount.
 
 ## Sources
 

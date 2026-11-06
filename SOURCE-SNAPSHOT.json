@@ -1,5 +1,5 @@
 {
-  "local_source_commit": "d197109",
+  "local_source_commit": "7d71a26",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-06",
@@ -26,7 +26,13 @@
     "partition_write_commands_issued": false,
     "root_filesystem_included": false,
     "ios_userland_included": false,
-    "hardware_result": "Image0008 accepted by temporary fastboot boot: send2.278s boot4.011s exit0; user screen observation pending. Transport is not execution proof."
+    "hardware_result": "Image0008 phone photo directly shows pthread initialization complete, Skywalk PASSED and IOMedia/Apple_HFS root-device wait; no panic visible in snapshot. Earlier AES fault passed by later source call ordering. No root mount or iOS userland.",
+    "hardware_photo_sha256": "a313f7d0baf1faeb318035989223f95ded60f0d672a0f92d82c8510577c4524a",
+    "pthread_init_completion_reported_on_phone": true,
+    "root_device_wait_visible_on_phone": true,
+    "panic_visible_in_phone_snapshot": false,
+    "complete_boot_confirmed": false,
+    "ios_userland_started": false
   },
   "previous_hardware_result": {
     "image": "0007",
@@ -34,7 +40,7 @@
     "result": "Protected first panic visible: Kernel data abort in AES key128+0x10 PCfffffe00078f6a88 ESR96000005 FAR78. Exact instruction reads NULL crypto table.",
     "photo_sha256": "b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df"
   },
-  "next_dependency": "Observe verified temporary image0008 on phone; root device/filesystem support remains absent. Preserve Android.",
+  "next_dependency": "Implement and validate a bounded RAM-backed root and minimal userspace test. Current image has no root filesystem/storage driver. Preserve Android; old SWEET userdata authorization does not apply.",
   "previous_verified_build": {
     "run_id": 42281662142,
     "source_commit": "988db79023cdce6805785bcc980b65a2adf07094",
