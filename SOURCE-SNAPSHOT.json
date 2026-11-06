@@ -1,26 +1,35 @@
 {
-  "local_source_commit": "bd230d72426e6d77a394c9a94681f74a717210f8",
+  "local_source_commit": "ed966b35233408ac5f783ceccbdad8b07a674688",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-06",
-  "full_kernel_build": "last verified build passed; new pthread integration build pending",
+  "full_kernel_build": "passed",
   "latest_verified_build": {
-    "run_id": 42202366971,
-    "run_attempt": 2,
-    "source_commit": "a98a0f89afc60886943faf9436ef313ccc360525",
-    "kernel_sha256": "1eccaf12b8dec4a9e61d6940b730efc5a5d2d6a52637451cbd45114d1af99107",
+    "run_id": 42239849041,
+    "source_commit": "51c1948587595f336115c65f0abe5f8c2dc07862",
+    "kernel_sha256": "ed5206231af5a6f9d46f2f690b99b9fea6ccecc905e2ca5801e5f35533b30b8b",
+    "kernel_bytes": 15904816,
+    "artifact_id": 13516940834,
+    "archive_sha256": "6b134885f4d254138337c23b48bfa40102237175ff56d28a1da8cb10bfaf079a",
     "download_verification": "passed",
+    "actual_pthread_symbols_verification": "passed",
     "linked_table_storage_verification": "passed",
-    "qemu_result": "Virtual GIC/timer control shows CPU registration, SGI1 verified and BSD MAC initialization; not a hardware result or full boot",
-    "hardware_boot_attempted": true,
-    "hardware_result": "User reports CPU/SGI1 completion; subsequent photo shows panic backtrace in pthread_init/bsd_init. Reason header not in photo; exact-symbol callsites identify missing pthread function table.",
-    "photo_sha256": "51ec9a845b7ded252f237b8a89b817712a861300ea68eb6ac5d83251ff7e55d3",
-    "ios_userland_included": false
+    "pthread": {
+      "tag": "libpthread-514.100.2",
+      "commit": "a6c70ca0e544347a0377babf748f831577ec24f9",
+      "real_implementation_and_panic_guards": true
+    },
+    "qemu_result": "Callbacks registered; later domaininit/tcp_init establishes return from pthread_init by source call ordering. Later AES data abort PC 0xfffffe00078f5a88 ESR 0x96000005 FAR 0x78; not a full boot.",
+    "hardware_boot_attempted": false,
+    "ios_userland_included": false,
+    "prepared_test_image": "0006",
+    "prepared_boot_sha256": "3353a82039d51db5ba2ab6b76effeb8dcbf2f8af63221edae10f973ba151227c"
   },
-  "next_component": {
-    "project": "libpthread",
-    "tag": "libpthread-514.100.2",
-    "commit": "a6c70ca0e544347a0377babf748f831577ec24f9",
-    "status": "First full build failed on missing SDK platform header; real SDK include path corrected, fresh full build pending"
-  }
+  "previous_hardware_result": {
+    "image": "0005",
+    "source_commit": "a98a0f89afc60886943faf9436ef313ccc360525",
+    "result": "User reports CPU/SGI1 completion; later photo shows pthread_init/bsd_init panic backtrace. Reason header is outside frame.",
+    "photo_sha256": "51ec9a845b7ded252f237b8a89b817712a861300ea68eb6ac5d83251ff7e55d3"
+  },
+  "next_dependency": "Investigate real g_crypto_funcs AES provider; no crypto fix included in image 0006"
 }

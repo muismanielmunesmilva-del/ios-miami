@@ -2,8 +2,8 @@
 
 This is a single-CPU adaptation based on ios-sweet. Probe V5 confirmed 16K
 translation and timer IRQs on the boot CPU. The full XNU kernel compiled,
-linked and passed payload validation in [the latest Intel-hosted Actions run](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42202366971)
-at source commit `a98a0f89afc60886943faf9436ef313ccc360525` (attempt 2).
+linked and passed payload validation in [the latest Intel-hosted Actions run](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42239849041)
+at source commit `51c1948587595f336115c65f0abe5f8c2dc07862`.
 The user's image 0004 photograph now confirms XNU execution on miami, platform
 expert registration and VM bootstrap completion. It stops without a visible
 panic; a complete kernel boot and iOS installation remain unconfirmed.
@@ -23,7 +23,10 @@ The subsequent photo of 0005 shows a panic backtrace through pthread_init and
 bsd_init. Its panic header is outside the photograph. The exact kernel's LR-4
 callsites identify the guard for a missing pthread function table. The next
 build integrates Apple's matching pthread kernel implementation; read
-[PTHREAD.md](PTHREAD.md). Build and runtime results for that integration are pending.
+[PTHREAD.md](PTHREAD.md). Full compilation/link and independent artifact checks
+passed. Host control registers callbacks and subsequently reaches TCP init,
+after the real pthread initialization. A later AES data abort remains.
+Temporary image 0006 is prepared; its hardware result is pending.
 Read [BRINGUP.md](BRINGUP.md) for implementation details and limitations.
 
 ## GitHub Actions
@@ -57,8 +60,8 @@ Python 3.9.6. Packaging accepts Apple's bounded, read-only, file-only __CTF
 debug metadata without copying it into kernel RAM; regression checks pass.
 The workflow needs no phone connection and uses a read-only GITHUB_TOKEN.
 
-Verified latest kernel: 15,883,920 bytes, SHA-256
-`1eccaf12b8dec4a9e61d6940b730efc5a5d2d6a52637451cbd45114d1af99107`.
+Verified latest kernel: 15,904,816 bytes, SHA-256
+`ed5206231af5a6f9d46f2f690b99b9fea6ccecc905e2ca5801e5f35533b30b8b`.
 The downloaded artifact's checksums, source commit, arm64 architecture and
 embedded MIAMI ADT were independently verified. Compilation and payload
 checks do not establish hardware boot success.

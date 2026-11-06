@@ -46,15 +46,27 @@ not search the SDK's standard include directory. The component now adds the
 selected real SDK's usr/include as a system directory, after its pinned kernel
 and pthread include paths; the helper checks that platform header exists.
 Compiler errors are extracted separately from warning-heavy parallel logs.
-The corrected full build is pending.
+The corrected [full build 42239849041](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42239849041)
+passed every gate at `51c1948587595f336115c65f0abe5f8c2dc07862`.
 
 Local checks cover fresh staging, pin/match/guard invariants, helper order and
 the actual early console. An offline compile using this XNU's exported headers
 and minimal SDK platform macros compiled the startup adapter, init and support
 translation units. Synchronization requires Apple's __builtin_xnu_type_summary
 and __builtin_xnu_type_signature; upstream Linux Clang lacks them. They are
-not stubbed or disabled in production. Full Apple-compiler verification and
-runtime testing are pending.
+not stubbed or disabled in production. Full Apple Clang/SDK compilation, linking
+and five-symbol verification passed. Downloaded ZIP/kernel identity and actual
+Mach-O implementation symbols were independently checked.
+
+In a host-only QEMU virt control, the 10-second framebuffer shows real pthread
+callback registration and CPU/SGI1 completion. XNU then waits up to 30 seconds
+for IORTC. A 45-second control reaches domaininit/tcp_init, which follow the
+unconditional pthread_init call in this source. The return from real pthread
+initialization is inferred from that later call chain; the completion line is
+overwritten in the final panic screen. The later data abort is at
+aes_encrypt_key128+0x10 (ESR 0x96000005, FAR 0x78), called for TCP Fast Open.
+The g_crypto_funcs provider is the next dependency to investigate. This is not
+a full boot or a hardware result for image 0006.
 
 This remains a single-CPU bring-up. No storage, USB, touch or SMP driver is
 added, and testing uses temporary fastboot boot images while preserving Android.

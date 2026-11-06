@@ -2,20 +2,20 @@
 
 Single-CPU XNU bring-up for Motorola Edge 30 Neo XT2245-1 (SM6375), inspired by [ios-sweet](https://github.com/dipa-studio/ios-sweet/tree/45263bee51df4a0f55cdf9c649af886399488ddb).
 
-The latest verified kernel passed [Actions run 42202366971, attempt 2](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42202366971), source commit `a98a0f89afc60886943faf9436ef313ccc360525`. Artifact identity, ARM64 target, embedded ADT and linked table alignment were independently checked.
+The pthread integration passed every gate in [Actions run 42239849041](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42239849041), source commit `51c1948587595f336115c65f0abe5f8c2dc07862`. Apple's matching libpthread-514.100.2 is pinned to `a6c70ca0e544347a0377babf748f831577ec24f9`. The real implementation and panic guards are retained. ZIP/kernel identity, actual Mach-O implementation symbols, embedded ADT and linked table alignment passed independent checks.
 
-On the phone, image 0004's photograph confirms XNU console execution, platform expert registration and VM bootstrap completion. On image 0005 the user reports the CPU registration/SGI1 message; a subsequent photograph shows a panic backtrace through pthread_init and bsd_init. The exact panic header is outside the photo. Exact-kernel callsite symbolication identifies the missing pthread function-table guard. A complete kernel boot and iOS userland remain unconfirmed.
+The host-only virtual GIC/timer control shows pthread callback registration and CPU/SGI1 completion. After XNU's 30-second RTC-service wait, its later domaininit/tcp_init backtrace establishes return from pthread_init by source call ordering; the completion line was overwritten. The control then aborts in aes_encrypt_key128+0x10 (ESR 0x96000005, FAR 0x78). The crypto provider is the next dependency to investigate. This is not a full boot or a phone result.
 
-This source integrates Apple's matching libpthread-514.100.2 kernel implementation at commit `a6c70ca0e544347a0377babf748f831577ec24f9`, retaining real initialization, synchronization and panic guards. Fresh staging and local API checks passed within the documented limits; the full Apple-compiler build and runtime result for this integration are pending.
+On the phone, image 0004's photograph confirms XNU console, platform expert and VM bootstrap progress. Image 0005's user report confirms CPU/SGI1 progress, followed by a photograph whose backtrace identifies the previous missing pthread-table guard; the panic header is outside the photo. Image 0006 is now packaged and independently verified for temporary testing, with its hardware result pending. iOS userland has not started.
 
 - [Build instructions](miami/xnu/README.md)
-- [Pthread source matching, integration and verification](miami/xnu/PTHREAD.md)
-- [Bring-up results and diagnostic-stage map](miami/xnu/BRINGUP.md)
+- [Pthread matching, integration and results](miami/xnu/PTHREAD.md)
+- [Bring-up details](miami/xnu/BRINGUP.md)
 - [Automatic main workflow](.github/workflows/miami-xnu.yml)
 - [Manual Intel workflow](.github/workflows/miami-xnu-intel.yml)
 
-Both workflows use macOS 15 Intel, preinstalled Xcode 16.4 and DEVELOPMENT/ARM64/MIAMI. The fallback is manual only. Device dumps, calibration, downloaded Apple userland and local build output are excluded. Android is preserved; device testing uses temporary fastboot boot images.
+Both workflows use macOS 15 Intel, preinstalled Xcode 16.4 and DEVELOPMENT/ARM64/MIAMI. The fallback is manual only. Device dumps, calibration, downloaded Apple userland and local build output are excluded. Android is preserved; device tests use temporary fastboot boot images.
 
-Latest verified kernel: 15,883,920 bytes, SHA-256 `1eccaf12b8dec4a9e61d6940b730efc5a5d2d6a52637451cbd45114d1af99107`.
+Latest kernel: 15,904,816 bytes, SHA-256 `ed5206231af5a6f9d46f2f690b99b9fea6ccecc905e2ca5801e5f35533b30b8b`.
 
 See [LICENSE](LICENSE) and original copyright notices.
