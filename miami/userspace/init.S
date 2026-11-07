@@ -7,6 +7,10 @@
 #define SYS_getpid 20
 #define SYS_select 93
 #define SYS_psynch_cvwait 305
+#define SYS_psynch_cvsignal 304
+#define SYS_bsdthread_create 360
+#define SYS_bsdthread_register 366
+#define SYS_mmap 197
 .text
 .globl _start
 .p2align 2
@@ -57,12 +61,144 @@ _start:
     adr x2, psynch_ok_end
     sub x2, x2, x1
     bl write_all
-    b tick
+    b thread_test
 psynch_failed:
     adr x1, psynch_error
     adr x2, psynch_error_end
     sub x2, x2, x1
     bl write_all
+    b tick
+thread_test:
+    /* Private condition and result flag stay on PID 1's writable stack. */
+    sub sp, sp, #32
+    stp xzr, xzr, [sp]
+    mov x21, sp
+    /* Independent 64 KiB anonymous stack for the second thread. */
+    mov x0, #0
+    mov x1, #0x10000
+    mov x2, #3
+    mov x3, #0x1002
+    mov x4, #-1
+    mov x5, #0
+    mov x16, #SYS_mmap
+    svc #0x80
+    b.cs thread_failed
+    mov x22, x0
+    adr x0, signal_thread
+    mov x1, #0
+    mov x2, #0
+    mov x3, #0
+    mov x4, #0
+    mov x5, #0
+    mov x6, #0
+    mov x16, #SYS_bsdthread_register
+    svc #0x80
+    b.cs thread_failed
+    mov x0, #0
+    mov x1, x21
+    add x2, x22, #0x10, lsl #12
+    mov x3, #0
+    mov x4, #0x1000000
+    mov x16, #SYS_bsdthread_create
+    svc #0x80
+    b.cs thread_failed
+    mov x0, x21
+    mov x1, #256
+    mov x2, #0
+    mov x3, #0
+    mov x4, #0
+    mov x5, #0x20
+    mov x6, #2
+    mov x7, #0
+    mov x16, #SYS_psynch_cvwait
+    svc #0x80
+    b.cs thread_failed
+    /* Wait for the signaler's result without depending on execution order. */
+    mov x23, #100
+thread_check:
+    add x9, x21, #8
+    ldar x10, [x9]
+    cmp x10, #1
+    b.eq thread_passed
+    cbnz x10, thread_failed
+    sub sp, sp, #16
+    mov x9, #10000
+    stp xzr, x9, [sp]
+    mov x0, #0
+    mov x1, #0
+    mov x2, #0
+    mov x3, #0
+    mov x4, sp
+    mov x16, #SYS_select
+    svc #0x80
+    add sp, sp, #16
+    subs x23, x23, #1
+    b.ne thread_check
+thread_failed:
+    adr x1, thread_error
+    adr x2, thread_error_end
+    sub x2, x2, x1
+    bl write_all
+    add sp, sp, #32
+    b tick
+thread_passed:
+    adr x1, thread_ok
+    adr x2, thread_ok_end
+    sub x2, x2, x1
+    bl write_all
+    add sp, sp, #32
+    b tick
+/* bsdthread_create supplies user_funcarg in x3 and a private stack. */
+signal_thread:
+    mov x20, x3
+    sub sp, sp, #16
+    mov x9, #0xd090
+    movk x9, #3, lsl #16
+    stp xzr, x9, [sp] /* 250000 microseconds */
+    mov x0, #0
+    mov x1, #0
+    mov x2, #0
+    mov x3, #0
+    mov x4, sp
+    mov x16, #SYS_select
+    svc #0x80
+    add sp, sp, #16
+    b.cs signal_failed
+    mov x0, x20
+    mov x1, #256
+    mov x2, #0
+    mov x3, #0
+    mov x4, #0
+    mov x5, #0
+    mov x6, #0
+    mov x7, #0x20
+    mov x16, #SYS_psynch_cvsignal
+    svc #0x80
+    b.cs signal_failed
+    /* An increment confirms the signal found a waiting thread, not prepost. */
+    and w9, w0, #0xffffff00
+    cmp w9, #256
+    b.ne signal_failed
+    mov x10, #1
+    b signal_store
+signal_failed:
+    mov x10, #2
+signal_store:
+    add x9, x20, #8
+    stlr x10, [x9]
+signal_idle:
+    sub sp, sp, #16
+    mov x9, #5
+    stp x9, xzr, [sp]
+    mov x0, #0
+    mov x1, #0
+    mov x2, #0
+    mov x3, #0
+    mov x4, sp
+    mov x16, #SYS_select
+    svc #0x80
+    add sp, sp, #16
+    b signal_idle
 tick:
     sub sp, sp, #16
     mov x5, #5
@@ -126,4 +262,9 @@ psynch_ok_end:
 psynch_error:
     .ascii "MIAMI PSYNCH ERROR: unexpected cvwait result\n"
 psynch_error_end:
-
+thread_ok:
+    .ascii "MIAMI THREADS: waiting thread signaled successfully\n"
+thread_ok_end:
+thread_error:
+    .ascii "MIAMI THREADS ERROR: signal test failed\n"
+thread_error_end:

@@ -82,6 +82,8 @@ def validate(data):
         raise ValueError('Wrong PID1 test executable')
     if b'MIAMI PSYNCH: cvwait timed out as expected' not in data[:limit]:
         raise ValueError('Missing pthread wait probe')
+    if b'MIAMI THREADS: waiting thread signaled successfully' not in data[:limit]:
+        raise ValueError('Missing cross-thread signal probe')
     return {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
             'entry': hex(entry), 'identity': 'org.miami.init', 'signature_pages_verified': slots}
 
