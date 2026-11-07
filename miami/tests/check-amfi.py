@@ -36,6 +36,10 @@ int main(void) {
 '''
 assert 'amfi_interface_register(&miami_amfi);' in source
 assert 'STARTUP(EARLY_BOOT, STARTUP_RANK_MIDDLE, miami_amfi_register)' in source
+ubc = (Path(sys.argv[1]) / 'bsd/kern/ubc_subr.c').read_text()
+guard = ubc.index('/* No CoreEntitlements parser: reject before XML can be stripped. */')
+assert ubc.index('error = cs_blob_init_validated(addr, size, &tmp_blob, &cd);') < guard < ubc.index('error = reconstitute_code_signature(&tmp_blob);')
+assert 'tmp_blob.csb_entitlements_blob || tmp_blob.csb_der_entitlements_blob' in ubc[guard:guard + 250]
 with tempfile.TemporaryDirectory(prefix='miami-amfi-check-') as folder:
     path = Path(folder)
     (path / 'check.c').write_text(harness)

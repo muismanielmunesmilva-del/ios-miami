@@ -39,6 +39,23 @@ def stage(tree):
     if text.count(old) != 1:
         raise ValueError('AMFI no-entitlements adaptation no longer matches')
     provider.write_text(text.replace(old, new))
+    # Reconstitution can strip XML entitlements. Reject before that step too,
+    # while both original entitlement blob pointers are still available.
+    ubc = tree / 'bsd/kern/ubc_subr.c'
+    text = ubc.read_text()
+    anchor = '\t/* Perform 1st stage reconstitution */\n'
+    if text.count(anchor) != 1:
+        raise ValueError('AMFI pre-reconstitution admission anchor changed')
+    text = text.replace(anchor, '''#if defined(ARM64_BOARD_CONFIG_MIAMI)
+\t/* No CoreEntitlements parser: reject before XML can be stripped. */
+\tif (tmp_blob.csb_entitlements_blob || tmp_blob.csb_der_entitlements_blob) {
+\t\terror = EPERM;
+\t\tgoto out;
+\t}
+#endif
+
+''' + anchor)
+    ubc.write_text(text)
     return {'filesystem': 'XNU mockfs: RAM executable as /sbin/launchd, devfs mountpoint',
             'root_argument': 'rd=md0', 'physical_storage_driver_added': False,
             'sha256': 'existing XNU ccsha256_ltc_di for legacy SHA256/code-signing page hashes',
