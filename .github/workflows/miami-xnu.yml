@@ -123,7 +123,7 @@ jobs:
           test -s "$KERNEL"
           xcrun lipo -info "$KERNEL" | tee out/architecture.txt
           xcrun otool -hv "$KERNEL" >> out/architecture.txt
-          xcrun nm -gU "$KERNEL" > "$RUNNER_TEMP/pthread-symbols.txt"
+          xcrun nm -U "$KERNEL" > "$RUNNER_TEMP/pthread-symbols.txt"
           for symbol in _pthread_start _pthread_internal_functions __pthread_init __psynch_mutexwait _workq_setup_thread; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/pthread-verification.txt
           done
