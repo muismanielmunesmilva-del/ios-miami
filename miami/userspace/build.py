@@ -80,6 +80,8 @@ def validate(data):
             raise ValueError('PID1 signed page hash mismatch')
     if b'MIAMI USERSPACE: PID=1 (getpid verified)' not in data[:limit]:
         raise ValueError('Wrong PID1 test executable')
+    if b'MIAMI PSYNCH: cvwait timed out as expected' not in data[:limit]:
+        raise ValueError('Missing pthread wait probe')
     return {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
             'entry': hex(entry), 'identity': 'org.miami.init', 'signature_pages_verified': slots}
 

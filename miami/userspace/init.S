@@ -6,6 +6,7 @@
 #define SYS_open 5
 #define SYS_getpid 20
 #define SYS_select 93
+#define SYS_psynch_cvwait 305
 .text
 .globl _start
 .p2align 2
@@ -27,6 +28,38 @@ _start:
     b.ne wrong_pid
     adr x1, hello
     adr x2, hello_end
+    sub x2, x2, x1
+    bl write_all
+    /* Exercise the pthread wait queue with a bounded timeout and no mutex.
+     * Darwin's psynch_cvwait accepts 8 arguments in x0..x7. A sequence of
+     * one increment and a private, stack-backed condition value reaches
+     * ksyn_wait; a normal timeout is returned as Darwin ETIMEDOUT (60).
+     */
+    sub sp, sp, #16
+    stp xzr, xzr, [sp]
+    mov x0, sp
+    mov x1, #256
+    mov x2, #0
+    mov x3, #0
+    mov x4, #0
+    mov x5, #0
+    mov x6, #0
+    mov x7, #0xe100
+    movk x7, #0x5f5, lsl #16
+    mov x16, #SYS_psynch_cvwait
+    svc #0x80
+    add sp, sp, #16
+    b.cc psynch_failed
+    cmp x0, #60
+    b.ne psynch_failed
+    adr x1, psynch_ok
+    adr x2, psynch_ok_end
+    sub x2, x2, x1
+    bl write_all
+    b tick
+psynch_failed:
+    adr x1, psynch_error
+    adr x2, psynch_error_end
     sub x2, x2, x1
     bl write_all
 tick:
@@ -86,3 +119,9 @@ heartbeat_end:
 error_pid:
     .ascii "MIAMI PID1 ERROR: getpid was not 1\n"
 error_pid_end:
+psynch_ok:
+    .ascii "MIAMI PSYNCH: cvwait timed out as expected\n"
+psynch_ok_end:
+psynch_error:
+    .ascii "MIAMI PSYNCH ERROR: unexpected cvwait result\n"
+psynch_error_end:
