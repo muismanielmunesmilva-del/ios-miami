@@ -1,14 +1,20 @@
 # MIAMI: initial XNU build for Motorola Edge 30 Neo
 
-Current status: the complete image0007 phone photo identifies the same AES
-data abort seen in the host control, after pthread initialization. The first
-panic reason/register pane worked on hardware. The legacy AES-CBC/ECB provider
-passed local known-answer tests and the complete Actions42287672552 build.
-Its 150-second host control reaches an IOMedia/Apple_HFS root-device wait,
-without a visible panic. The image0008 phone photograph now confirms the same
-pthread/Skywalk progress and IOMedia/Apple_HFS root wait, with no panic visible.
-There is still no mounted root filesystem or iOS userland.
-See [AES.md](AES.md) and [PANIC-SCREEN.md](PANIC-SCREEN.md).
+The RAM-only first-process build passed [Actions 42343575171](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42343575171)
+at `b12e42493b7ca027465805bd06a77d950da92502`. Its exact kernel/payload/probe passed independent
+artifact, implementation, signature-page, RAM-range and loader checks.
+The 150-second QEMU control mounted md0 through mockfs and executed the
+static program as PID1: getpid verified, 17 visible heartbeats and
+38 SVC calls from the four probe call sites in EL0. No panic was
+visible in the final snapshot. These are host results.
+
+Temporary image0009 is prepared with loader0005 and `rd=md0`; the phone test
+has not been attempted. The last phone evidence remains image0008: pthread
+initialization, Skywalk PASSED and the IOMedia/Apple_HFS root-device wait.
+The new RAM root contains only the static test program and devfs; full iOS
+userland, storage and other device drivers remain future work.
+
+See [RAM-ROOT.md](RAM-ROOT.md) for scope and checks.
 
 ## Earlier build history
 

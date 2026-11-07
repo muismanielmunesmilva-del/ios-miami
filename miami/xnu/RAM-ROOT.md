@@ -51,7 +51,7 @@ RAM handoffs and altered signed code. Cross-compilation/link and both workflow
 syntax checks pass. Full CI42294997601 passed, but the 150-second isolated host test found a
 kernel data abort at accelerate_entitlement_queries+0x1c, FAR0x1a0, before
 EL0 execution. This is the absent AMFI interface, not a successful PID1 test.
-The next revision stages the selected upstream no-entitlements interface,
+The verified revision stages the selected upstream no-entitlements interface,
 hardened to reject XML/DER entitlement blobs or existing entitlement objects.
 All privilege queries are denied. Normal CodeDirectory and page-hash checks
 remain. The policy harness checks these rejection cases; the real kernel
@@ -62,6 +62,37 @@ SHA256/AMFI symbols, validate the rooted payload and publish its hashes alongsid
 the kernel. A successful host runtime test must show PID1 and repeated
 heartbeats, with independent EL0/SVC trace evidence. A compiled image alone
 does not establish userspace execution or an iOS boot.
+
+## Verified delivery
+
+The RAM-only first-process build passed [Actions 42343575171](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42343575171)
+at `b12e42493b7ca027465805bd06a77d950da92502`. Its exact kernel/payload/probe passed independent
+artifact, implementation, signature-page, RAM-range and loader checks.
+The 150-second QEMU control mounted md0 through mockfs and executed the
+static program as PID1: getpid verified, 17 visible heartbeats and
+38 SVC calls from the four probe call sites in EL0. No panic was
+visible in the final snapshot. These are host results.
+
+Temporary image0009 is prepared with loader0005 and `rd=md0`; the phone test
+has not been attempted. The last phone evidence remains image0008: pthread
+initialization, Skywalk PASSED and the IOMedia/Apple_HFS root-device wait.
+The new RAM root contains only the static test program and devfs; full iOS
+userland, storage and other device drivers remain future work.
+
+The final artifact's kernel SHA-256 is `9acdf2a6342cac42b999b7e5013bf381e3ae896bc089007ee42c00d5f8570e9f` and UUID
+`31FFE095-E332-3661-BAD1-20CCFC297A6D`. Image0009 SHA-256 is
+`fb44f280f0a8e49ab89bb50d83de352bfa2673c8f7f4c49628b74022c7241324`. The signed probe is
+`0bf2c9dec1f231148aba48ec8dc191f8e98ead908d857b9c02e7304b4135c681`.
+
+The pre-reconstitution guard runs after structural signature validation and
+before XML can be stripped. The host policy harness checks denial cases.
+Physical validation remains pending. The final artifact kernel/probe and the
+exact payload embedded in image0009 passed the host execution test. The CI
+payload also passed separately; repackaging supplies a fresh entropy seed.
+
+The probe does not exercise PSYNCH/full pthread APIs. Before those tests,
+the MIAMI kernel's opaque wait storage must be reconciled with the paired
+provider structure and checked with an ABI size/alignment assertion.
 
 ## References
 

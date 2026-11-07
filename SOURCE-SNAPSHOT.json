@@ -1,10 +1,130 @@
 {
-  "local_source_commit": "a5bf4076c34d6b5c69ae3b964d1ac26c7f579f45",
+  "local_source_commit": "c834928",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-06",
   "full_kernel_build": "passed",
   "latest_verified_build": {
+    "date_local": "2026-11-06",
+    "repository": "muismanielmunesmilva-del/ios-miami",
+    "run_id": 42343575171,
+    "commit": "b12e42493b7ca027465805bd06a77d950da92502",
+    "kernel_sha256": "9acdf2a6342cac42b999b7e5013bf381e3ae896bc089007ee42c00d5f8570e9f",
+    "kernel_bytes": 15925816,
+    "payload_sha256": "27ba02cb871bc04192fb475ddee683527e3e289d4f6a39c151ec5e47ab7f89a1",
+    "payload_bytes": 15929600,
+    "adt_sha256": "1824a870c116fa6205ae2d9a2f7148473dcabd4db8877f066592890c8836bbc2",
+    "artifact_checksum_verification": "PASS",
+    "target_and_embedded_adt_verification": "PASS",
+    "hardware_boot_attempted": false,
+    "ios_userland_included": false,
+    "pthread_source_commit": "a6c70ca0e544347a0377babf748f831577ec24f9",
+    "linked_pthread_implementation_verification": "PASS",
+    "actual_kernel_pthread_symbols": {
+      "__psynch_mutexwait": "0xfffffe00078b0b5c",
+      "__pthread_init": "0xfffffe00078b0aa0",
+      "_pthread_internal_functions": "0xfffffe000722a478",
+      "_pthread_start": "0xfffffe00078af814",
+      "_workq_setup_thread": "0xfffffe00078b0600"
+    },
+    "first_panic_implementation_verification": "PASS",
+    "actual_kernel_first_panic_symbols": {
+      "_miami_panic_reason": "0xfffffe000745a63c",
+      "_miami_panic_reserved_rows": "0xfffffe0007459af4",
+      "_miami_panic_saved_state": "0xfffffe000745a09c",
+      "_miami_panic_use_framebuffer": "0xfffffe000745a064"
+    },
+    "legacy_aes_source_commit": "7bea48e5e850ab4cafbe68d3765cdaba13a86d6f",
+    "actual_legacy_aes_implementation_verification": "PASS",
+    "actual_kernel_aes_symbols": {
+      "_br_aes_ct_cbcdec_init": "0xfffffe00078f92f8",
+      "_br_aes_ct_cbcdec_run": "0xfffffe00078f9328",
+      "_br_aes_ct_cbcenc_init": "0xfffffe00078f90dc",
+      "_br_aes_ct_cbcenc_run": "0xfffffe00078f910c",
+      "_miami_aes_cbc_decrypt": "0xfffffe000722ef28",
+      "_miami_aes_cbc_encrypt": "0xfffffe000722ef00"
+    },
+    "actual_aes_mode_descriptors": {
+      "_miami_aes_cbc_encrypt": {
+        "context_bytes": 256,
+        "block_bytes": 16,
+        "init": "0xfffffe00078f7b20",
+        "cbc": "0xfffffe00078f7b9c"
+      },
+      "_miami_aes_cbc_decrypt": {
+        "context_bytes": 256,
+        "block_bytes": 16,
+        "init": "0xfffffe00078f7c54",
+        "cbc": "0xfffffe00078f7cd0"
+      }
+    },
+    "bearssl_license_verification": "PASS",
+    "actual_ram_root_implementation_verification": "PASS",
+    "actual_kernel_ram_root_symbols": {
+      "_miami_amfi_adjust_without_monitor": "0xfffffe000773cf9c",
+      "_miami_amfi_register": "0xfffffe0007a55c78",
+      "_SHA256_Init": "0xfffffe00078f68d0",
+      "_ccsha256_ltc_di": "0xfffffe0007167640",
+      "_mockfs_fsnode_create": "0xfffffe000751cdf4",
+      "_mockfs_mountroot": "0xfffffe000751d328"
+    },
+    "signed_pid1_verification": {
+      "sha256": "0bf2c9dec1f231148aba48ec8dc191f8e98ead908d857b9c02e7304b4135c681",
+      "bytes": 16635,
+      "entry": "0x100000400",
+      "identity": "org.miami.init",
+      "signature_pages_verified": 4
+    },
+    "ram_root_range": {
+      "physical": "0x182024000",
+      "bytes": 32768
+    },
+    "kernel_uuid": "31FFE095-E332-3661-BAD1-20CCFC297A6D",
+    "artifact_id": 13562938288,
+    "archive_sha256": "86cad3ab7ccb28c7c6f31b07818141d27bf08800fd76d4ba14233d08edf5d271",
+    "qemu_result": {
+      "hardware_evidence": false,
+      "virt_gic_controls": true,
+      "cpu": "cortex-a55",
+      "gicd": "0x08000000",
+      "gicr": "0x080a0000",
+      "timer_intid": 27,
+      "wall_seconds": 150,
+      "timebase_hz": 62500000,
+      "delivered_payload_modified": false,
+      "input_payload_sha256": "45ffc43a419e03350fc7b88738929f44a25ef7bc4145642f2c87c18d87f4a46a",
+      "status": "PASS",
+      "console_pid1_getpid_verified": true,
+      "visible_heartbeats": 17,
+      "el0_svc_count": 38,
+      "verified_svc_return_addresses": [
+        "0x100000420",
+        "0x100000430",
+        "0x100000474",
+        "0x1000004c8"
+      ],
+      "probe_sha256": "0bf2c9dec1f231148aba48ec8dc191f8e98ead908d857b9c02e7304b4135c681",
+      "kernel_sha256": "9acdf2a6342cac42b999b7e5013bf381e3ae896bc089007ee42c00d5f8570e9f",
+      "trace_sha256": "3814a3b8182873c6d45f0f769aed196ec3bb3f413f253c2611acc3823ad60afa",
+      "console_sha256": "9b5aed9a3d66ab60d7ba015bec2ab031bfc1c02ea71f2d853b2f55ffd1589b12",
+      "ios_full_userspace": false
+    },
+    "prepared_test_image": "0009",
+    "prepared_boot_sha256": "fb44f280f0a8e49ab89bb50d83de352bfa2673c8f7f4c49628b74022c7241324",
+    "hardware_result": "not yet attempted",
+    "partition_write_commands_issued": false,
+    "root_filesystem_included": true,
+    "root_filesystem_type": "RAM-only mockfs and static first-process probe",
+    "ios_full_userspace_included": false
+  },
+  "previous_hardware_result": {
+    "image": "0007",
+    "source_commit": "988db79023cdce6805785bcc980b65a2adf07094",
+    "result": "Protected first panic visible: Kernel data abort in AES key128+0x10 PCfffffe00078f6a88 ESR96000005 FAR78. Exact instruction reads NULL crypto table.",
+    "photo_sha256": "b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df"
+  },
+  "next_dependency": "Observe image0009 PID1/heartbeats on miami hardware; audit pthread opaque wait storage ABI before PSYNCH/full-pthread tests.",
+  "previous_verified_build": {
     "run_id": 42287672552,
     "source_commit": "64c5ca35fabdfc6838192d07412ff486ab6fc6b1",
     "kernel_sha256": "97085e47288650ee7b99a6ad03abf16666e3e6a0880fa1290fa86da91a59471a",
@@ -33,45 +153,5 @@
     "panic_visible_in_phone_snapshot": false,
     "complete_boot_confirmed": false,
     "ios_userland_started": false
-  },
-  "previous_hardware_result": {
-    "image": "0007",
-    "source_commit": "988db79023cdce6805785bcc980b65a2adf07094",
-    "result": "Protected first panic visible: Kernel data abort in AES key128+0x10 PCfffffe00078f6a88 ESR96000005 FAR78. Exact instruction reads NULL crypto table.",
-    "photo_sha256": "b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df"
-  },
-  "next_dependency": "Compile and verify RAM-root kernel/probe, prove EL0 PID1 and repeated heartbeats in host control, prepare next temporary image preserving Android.",
-  "previous_verified_build": {
-    "run_id": 42281662142,
-    "source_commit": "988db79023cdce6805785bcc980b65a2adf07094",
-    "kernel_sha256": "842b7d87c6c840bc14d98d42a7e3cf43aaf53321ee6fc26e1a8f1c33f15fe61b",
-    "kernel_bytes": 15905352,
-    "kernel_uuid": "47A0388E-4A7B-3B9B-A5D4-96E5C55468B4",
-    "artifact_id": 13535918979,
-    "archive_sha256": "93052fb9acbeda93582d6394c9c2beabb7611cd87f24906a35f5582c070fcaab",
-    "download_verification": "passed",
-    "actual_pthread_and_panic_symbols_verification": "passed",
-    "linked_table_storage_verification": "passed",
-    "pthread": {
-      "tag": "libpthread-514.100.2",
-      "commit": "a6c70ca0e544347a0377babf748f831577ec24f9",
-      "real_implementation_and_panic_guards": true
-    },
-    "qemu_result": "First-panic pane survives native panic report. Saved PC 0xfffffe00078f6a88/ESR 0x96000005/FAR 0x78 match independent exception trace; AES key128+0x10. Host-only control; full boot not proven.",
-    "hardware_boot_attempted": true,
-    "hardware_result": "0007 complete phone photograph confirms Kernel data abort PC0xfffffe00078f6a88 ESR0x96000005 FAR0x78 in AES key128+0x10, NULL crypto-function table dereference. Pane survives report; pthread return inferred from call order; no full boot.",
-    "prepared_test_image": "0007",
-    "prepared_boot_sha256": "91fb8caa8782a56e1890b5dc20bacc5982f835a326f17cd0959e171755ed33d2",
-    "partition_write_commands_issued": false,
-    "ios_userland_included": false,
-    "first_panic_photo_sha256": "b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df"
-  },
-  "source_adaptation_pending": {
-    "ram_root": "mockfs + bounded final payload segment / chosen memory-map RAMDisk, rd=md0",
-    "pid1": "small static signed plain-arm64 program; verifies getpid1, console heartbeat, no storage IO",
-    "local_checks": "passed: source/loader/liveFDT/signature/SHA25644cases/AES/console/workflow",
-    "full_kernel_build": "pending",
-    "next_image_prepared": false,
-    "physical_storage_driver_added": false
   }
 }
