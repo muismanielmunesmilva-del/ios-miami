@@ -139,7 +139,8 @@ thread_failed:
     adr x2, thread_error_end
     sub x2, x2, x1
     bl write_all
-    add sp, sp, #32
+    /* A created child might still access this shared stack object. Keep it
+     * reserved on failure until PID 1 exits, rather than reuse it. */
     b tick
 thread_passed:
     adr x1, thread_ok
