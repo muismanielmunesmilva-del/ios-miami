@@ -33,7 +33,8 @@ _start:
     /* Exercise the pthread wait queue with a bounded timeout and no mutex.
      * Darwin's psynch_cvwait accepts 8 arguments in x0..x7. A sequence of
      * one increment and a private, stack-backed condition value reaches
-     * ksyn_wait; a normal timeout is returned as Darwin ETIMEDOUT (60).
+     * ksyn_wait; this empty queue times out with ETIMEDOUT | ECVCLEARED
+     * (0x3c | 0x100), as the paired libpthread's psynch_cvcontinue specifies.
      */
     sub sp, sp, #16
     stp xzr, xzr, [sp]
@@ -50,7 +51,7 @@ _start:
     svc #0x80
     add sp, sp, #16
     b.cc psynch_failed
-    cmp x0, #60
+    cmp x0, #0x13c
     b.ne psynch_failed
     adr x1, psynch_ok
     adr x2, psynch_ok_end
@@ -125,3 +126,4 @@ psynch_ok_end:
 psynch_error:
     .ascii "MIAMI PSYNCH ERROR: unexpected cvwait result\n"
 psynch_error_end:
+
