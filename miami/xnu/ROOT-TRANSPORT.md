@@ -12,8 +12,28 @@ the OS image `087-86698-044.dmg` (4,730,814,044 bytes), SystemOS cryptex
 `087-86715-047.dmg` (10,485,760 bytes). These are container sizes, not proven
 resident memory or extracted filesystem sizes. The ipsw inventory checks the
 manifest's pinned SHA-256 and d22ap Update identity; it does not authenticate
-or download the DMG contents. CI checks only the small manifest using range
-requests and does not publish Apple binaries.
+or download the DMG contents. Separately, all three local DMGs were fetched
+from the Apple-hosted archive, passed ZIP CRC-32 and matched the SHA-384
+digests in the pinned manifest. This is digest verification against that
+manifest; the manifest's Apple signature has not been independently verified.
+CI checks only the small manifest using range requests and does not publish
+Apple binaries.
+
+Read-only local APFS inspection found plain-arm64 `launchd` (541,600 bytes)
+and `dyld` (922,912 bytes). The former names `/usr/lib/dyld` as its loader
+and imports `libSystem.B.dylib` and `libobjc.A.dylib`; neither executable
+fits the current 64 KiB mockfs probe limit. Their CodeDirectory SHA-256 page
+hashes were independently checked (127 and 220 pages respectively), but
+neither CMS signatures nor Apple trust chains were verified. Local inspection
+staging contains these two files only and is explicitly marked not bootable.
+
+The SystemOS dyld cache directory contains 44 entries totalling 3,330,359,296
+logical bytes, including a 592,101,376-byte symbols file. These are measured
+file sizes, not proof that every file or byte is required at runtime. A minimal
+dependency closure and its memory/storage requirements remain unmeasured.
+APFS was read locally using the GPL-licensed apfs-fuse at commit
+`66b86bd525e8cb90f9012543be89b1f092b75cf3`; no code or Apple binaries from
+that inspection are shipped in this repository.
 
 The ios-sweet root builder normally constructs a 16 GiB HFS+ image from the
 OS and cryptexes, using apfs-fuse, mkfs.hfsplus, rsync and privileged mounts.
@@ -27,7 +47,15 @@ Possible approaches require further evidence:
   layout. It must fit without overwriting firmware reservations or the kernel.
 * A read-only external USB root needs a working MIAMI USB host controller,
   mass-storage and filesystem stack, and a separately supplied external medium.
-  None is currently implemented or verified here.
+  None is currently implemented or verified here. The supplied Motorola
+  firmware device tree names a Synopsys DWC3 controller and `dr_mode = "otg"`;
+  this is Android firmware description, not a successful XNU host-mode test.
+  [UniXNU QcomDwc3](https://github.com/UniXNU/QcomDwc3) is a potentially useful
+  reference, but targets SM8550/iPadOS 27 and relies on Apple USB controller
+  classes. Its authors report host mode as partial and peripheral enumeration
+  unverified. Its PHY files have GPL-2.0-only licensing. Compatibility with
+  SM6375/iOS 16, PHY sequencing, power, DMA/SMMU and licensing require separate
+  investigation; no code has been copied or enabled from it.
 * A network root similarly needs working network and filesystem drivers. No
   functional MIAMI network device is available to the current XNU build.
 

@@ -64,6 +64,8 @@ jobs:
         run: |
           python3 tools/remotezip.py 'https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw' BuildManifest.plist "$RUNNER_TEMP/ios-manifest"
           python3 miami/userspace/inspect_ipsw.py "$RUNNER_TEMP/ios-manifest/BuildManifest.plist"
+      - name: Validate Mach-O CodeDirectory page verifier
+        run: python3 miami/tests/check-codesign-pages.py
 
   kernel:
     needs: validate
