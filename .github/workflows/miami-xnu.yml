@@ -60,6 +60,10 @@ jobs:
           git -C "$RUNNER_TEMP/xnu-check/bearssl" checkout -q FETCH_HEAD
       - name: Validate target source edits and early console compilation
         run: python3 miami/tests/check-source.py --source "$RUNNER_TEMP/xnu-check/xnu" --helper "$RUNNER_TEMP/xnu-check/helper" --pthread "$RUNNER_TEMP/xnu-check/pthread" --bearssl "$RUNNER_TEMP/xnu-check/bearssl"
+      - name: Check pinned Apple restore manifest provenance
+        run: |
+          python3 tools/remotezip.py 'https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw' BuildManifest.plist "$RUNNER_TEMP/ios-manifest"
+          python3 miami/userspace/inspect_ipsw.py "$RUNNER_TEMP/ios-manifest/BuildManifest.plist"
 
   kernel:
     needs: validate
