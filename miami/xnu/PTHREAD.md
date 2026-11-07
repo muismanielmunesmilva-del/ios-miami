@@ -1,9 +1,20 @@
 # Matching Apple pthread kernel component
 
-Image 0009 was booted temporarily on the phone. The user reported that
-PID 1 and heartbeat messages appeared; no phone photograph was provided.
-The new image 0010 is prepared for a bounded `psynch_cvwait` timeout test;
-its phone test is pending.
+Image 0009 was booted temporarily on the phone. The user reported PID 1
+and heartbeat messages. For image 0010 the user reported the expected PSYNCH
+timeout message and heartbeats. No phone photograph was provided for either.
+
+Image 0011 prepares a cross-thread condition-signal test. The program
+registers and creates a BSD thread, then waits on a private PSYNCH condition.
+The second thread signals it, and the test requires the returned PTHRW_INC
+to confirm an actual waiter was signaled instead of only preposting a signal.
+[Actions 42349700687](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42349700687)
+passed at `215a2eeed0320f00938617762b3b9d44ada02a88`. An isolated 150-second QEMU test of the exact
+delivered payload showed the signal success, 17 heartbeats and
+66 EL0 SVCs. This is host evidence. The phone test remains pending.
+This is a bounded kernel-interface test, not full libpthread or iOS userland.
+A separate host-only late-signal variant produced the expected failure and
+continued heartbeats without a visible panic.
 
 MIAMI's opaque pthread wait storage is now 56 bytes and 8-byte aligned,
 matching the pinned Apple provider, whose size and alignment have compile-time
@@ -12,8 +23,8 @@ passed at `bebb048d775f4133c80ed1d46f5cd76105d5c9d3`. The resulting kernel is by
 the corrected source declaration does not change that binary. The PID1 probe
 is new. Its exact packaged payload passed a 150-second QEMU control: expected
 `ETIMEDOUT | ECVCLEARED` (0x13c), 17 heartbeats and
-40 EL0 SVC calls. This host test covers a timed wait; thread
-signalling and the full pthread API remain untested.
+40 EL0 SVC calls. That host test covered a timed wait; the subsequent cross-thread
+signal test is described above. The full pthread API remains untested.
 
 The image 0005 photograph shows a kernel panic backtrace. Symbolication using
 the exact verified kernel and LR minus four yields pthread_init.cold.1+0x24,
