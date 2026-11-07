@@ -1,10 +1,19 @@
 # Matching Apple pthread kernel component
 
-Latest phone evidence, image0007: the protected pane identifies an AES data
-abort during TCP initialization. Its backtrace reaches domaininit/tcp_init,
-after the unconditional pthread_init call in this exact XNU. Return from
-pthread_init is therefore inferred from source call ordering; this is not
-a full pthread functional test or complete boot. See [AES.md](AES.md).
+Image 0009 was booted temporarily on the phone. The user reported that
+PID 1 and heartbeat messages appeared; no phone photograph was provided.
+The new image 0010 is prepared for a bounded `psynch_cvwait` timeout test;
+its phone test is pending.
+
+MIAMI's opaque pthread wait storage is now 56 bytes and 8-byte aligned,
+matching the pinned Apple provider, whose size and alignment have compile-time
+assertions. [Actions 42347275248](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42347275248)
+passed at `bebb048d775f4133c80ed1d46f5cd76105d5c9d3`. The resulting kernel is byte-identical to image 0009;
+the corrected source declaration does not change that binary. The PID1 probe
+is new. Its exact packaged payload passed a 150-second QEMU control: expected
+`ETIMEDOUT | ECVCLEARED` (0x13c), 17 heartbeats and
+40 EL0 SVC calls. This host test covers a timed wait; thread
+signalling and the full pthread API remain untested.
 
 The image 0005 photograph shows a kernel panic backtrace. Symbolication using
 the exact verified kernel and LR minus four yields pthread_init.cold.1+0x24,

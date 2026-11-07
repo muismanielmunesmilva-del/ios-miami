@@ -1,10 +1,130 @@
 {
-  "local_source_commit": "c834928",
+  "local_source_commit": "b57d092",
   "upstream_base": "45263bee51df4a0f55cdf9c649af886399488ddb",
   "kind": "minimal source snapshot; no local Git history or private device dumps",
   "date_local": "2026-11-06",
   "full_kernel_build": "passed",
   "latest_verified_build": {
+    "date_local": "2026-11-06",
+    "repository": "muismanielmunesmilva-del/ios-miami",
+    "run_id": 42347275248,
+    "commit": "bebb048d775f4133c80ed1d46f5cd76105d5c9d3",
+    "kernel_sha256": "9acdf2a6342cac42b999b7e5013bf381e3ae896bc089007ee42c00d5f8570e9f",
+    "kernel_bytes": 15925816,
+    "payload_sha256": "fccbb9069c28d8318398e40c59bce1153abf8411fbbedc536352523724b057a9",
+    "payload_bytes": 15929600,
+    "adt_sha256": "80e464f989775a1417696d6e3b3ed4d01f37eba16cd08cb2265742c603160a4f",
+    "artifact_checksum_verification": "PASS",
+    "target_and_embedded_adt_verification": "PASS",
+    "hardware_boot_attempted": false,
+    "ios_userland_included": false,
+    "pthread_source_commit": "a6c70ca0e544347a0377babf748f831577ec24f9",
+    "linked_pthread_implementation_verification": "PASS",
+    "actual_kernel_pthread_symbols": {
+      "__psynch_mutexwait": "0xfffffe00078b0b5c",
+      "__pthread_init": "0xfffffe00078b0aa0",
+      "_pthread_internal_functions": "0xfffffe000722a478",
+      "_pthread_start": "0xfffffe00078af814",
+      "_workq_setup_thread": "0xfffffe00078b0600"
+    },
+    "first_panic_implementation_verification": "PASS",
+    "actual_kernel_first_panic_symbols": {
+      "_miami_panic_reason": "0xfffffe000745a63c",
+      "_miami_panic_reserved_rows": "0xfffffe0007459af4",
+      "_miami_panic_saved_state": "0xfffffe000745a09c",
+      "_miami_panic_use_framebuffer": "0xfffffe000745a064"
+    },
+    "legacy_aes_source_commit": "7bea48e5e850ab4cafbe68d3765cdaba13a86d6f",
+    "actual_legacy_aes_implementation_verification": "PASS",
+    "actual_kernel_aes_symbols": {
+      "_br_aes_ct_cbcdec_init": "0xfffffe00078f92f8",
+      "_br_aes_ct_cbcdec_run": "0xfffffe00078f9328",
+      "_br_aes_ct_cbcenc_init": "0xfffffe00078f90dc",
+      "_br_aes_ct_cbcenc_run": "0xfffffe00078f910c",
+      "_miami_aes_cbc_decrypt": "0xfffffe000722ef28",
+      "_miami_aes_cbc_encrypt": "0xfffffe000722ef00"
+    },
+    "actual_aes_mode_descriptors": {
+      "_miami_aes_cbc_encrypt": {
+        "context_bytes": 256,
+        "block_bytes": 16,
+        "init": "0xfffffe00078f7b20",
+        "cbc": "0xfffffe00078f7b9c"
+      },
+      "_miami_aes_cbc_decrypt": {
+        "context_bytes": 256,
+        "block_bytes": 16,
+        "init": "0xfffffe00078f7c54",
+        "cbc": "0xfffffe00078f7cd0"
+      }
+    },
+    "bearssl_license_verification": "PASS",
+    "actual_ram_root_implementation_verification": "PASS",
+    "actual_kernel_ram_root_symbols": {
+      "_miami_amfi_adjust_without_monitor": "0xfffffe000773cf9c",
+      "_miami_amfi_register": "0xfffffe0007a55c78",
+      "_SHA256_Init": "0xfffffe00078f68d0",
+      "_ccsha256_ltc_di": "0xfffffe0007167640",
+      "_mockfs_fsnode_create": "0xfffffe000751cdf4",
+      "_mockfs_mountroot": "0xfffffe000751d328"
+    },
+    "signed_pid1_verification": {
+      "sha256": "cf0410696297017a94ce0faf1915efbdb2894c90f4197e634907e467171b555f",
+      "bytes": 16635,
+      "entry": "0x100000400",
+      "identity": "org.miami.init",
+      "signature_pages_verified": 4
+    },
+    "ram_root_range": {
+      "physical": "0x182024000",
+      "bytes": 32768
+    },
+    "artifact_id": 13564602397,
+    "archive_sha256": "e5da5f4e0cfc2a8eac9a830eeb9c0e2e7b3c34db9926ffa840a1313e769801ff",
+    "kernel_uuid": "31FFE095-E332-3661-BAD1-20CCFC297A6D",
+    "prepared_test_image": "0010",
+    "prepared_boot_sha256": "641db205dcb6cbac42de50ac799375d751b96f72755fb86be7e9bc548fefe036",
+    "qemu_result": {
+      "hardware_evidence": false,
+      "virt_gic_controls": true,
+      "cpu": "cortex-a55",
+      "gicd": "0x08000000",
+      "gicr": "0x080a0000",
+      "timer_intid": 27,
+      "wall_seconds": 150,
+      "timebase_hz": 62500000,
+      "delivered_payload_modified": false,
+      "input_payload_sha256": "fdb8789cbde6f17c90f4b0173e10b5f98e8fd1f377cce919a4557143bdc9cae4",
+      "status": "PASS",
+      "console_pid1_getpid_verified": true,
+      "psynch_cvwait_timeout_verified": true,
+      "visible_heartbeats": 17,
+      "el0_svc_count": 40,
+      "verified_svc_return_addresses": [
+        "0x100000420",
+        "0x100000430",
+        "0x100000480",
+        "0x1000004dc",
+        "0x100000530"
+      ],
+      "probe_sha256": "cf0410696297017a94ce0faf1915efbdb2894c90f4197e634907e467171b555f",
+      "kernel_sha256": "9acdf2a6342cac42b999b7e5013bf381e3ae896bc089007ee42c00d5f8570e9f",
+      "trace_sha256": "a595f039a8edccaf6fc34c289999ccf4be3980d0dcd03b40b2d020898fb4ec42",
+      "console_sha256": "2809e012f509d59ad5cd8e1c40e42b61cdb7fd4eb9da8a55bb08b6bc1312d1f6",
+      "ios_full_userspace": false
+    },
+    "hardware_result": "not yet attempted",
+    "partition_write_commands_issued": false,
+    "ios_full_userspace_included": false
+  },
+  "previous_hardware_result": {
+    "image": "0007",
+    "source_commit": "988db79023cdce6805785bcc980b65a2adf07094",
+    "result": "Protected first panic visible: Kernel data abort in AES key128+0x10 PCfffffe00078f6a88 ESR96000005 FAR78. Exact instruction reads NULL crypto table.",
+    "photo_sha256": "b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df"
+  },
+  "next_dependency": "Observe image0010 timed PSYNCH wait on miami; then investigate multi-thread signalling and further userspace.",
+  "previous_verified_build": {
     "date_local": "2026-11-06",
     "repository": "muismanielmunesmilva-del/ios-miami",
     "run_id": 42343575171,
@@ -16,7 +136,7 @@
     "adt_sha256": "1824a870c116fa6205ae2d9a2f7148473dcabd4db8877f066592890c8836bbc2",
     "artifact_checksum_verification": "PASS",
     "target_and_embedded_adt_verification": "PASS",
-    "hardware_boot_attempted": false,
+    "hardware_boot_attempted": true,
     "ios_userland_included": false,
     "pthread_source_commit": "a6c70ca0e544347a0377babf748f831577ec24f9",
     "linked_pthread_implementation_verification": "PASS",
@@ -111,47 +231,11 @@
     },
     "prepared_test_image": "0009",
     "prepared_boot_sha256": "fb44f280f0a8e49ab89bb50d83de352bfa2673c8f7f4c49628b74022c7241324",
-    "hardware_result": "not yet attempted",
+    "hardware_result": "User reported PID 1 and heartbeats on the phone",
     "partition_write_commands_issued": false,
     "root_filesystem_included": true,
     "root_filesystem_type": "RAM-only mockfs and static first-process probe",
-    "ios_full_userspace_included": false
-  },
-  "previous_hardware_result": {
-    "image": "0007",
-    "source_commit": "988db79023cdce6805785bcc980b65a2adf07094",
-    "result": "Protected first panic visible: Kernel data abort in AES key128+0x10 PCfffffe00078f6a88 ESR96000005 FAR78. Exact instruction reads NULL crypto table.",
-    "photo_sha256": "b9c827e17f67065b5639aa493b589297aa5eefade8567e4e6ffc3bef798d00df"
-  },
-  "next_dependency": "Observe image0009 PID1/heartbeats on miami hardware; audit pthread opaque wait storage ABI before PSYNCH/full-pthread tests.",
-  "previous_verified_build": {
-    "run_id": 42287672552,
-    "source_commit": "64c5ca35fabdfc6838192d07412ff486ab6fc6b1",
-    "kernel_sha256": "97085e47288650ee7b99a6ad03abf16666e3e6a0880fa1290fa86da91a59471a",
-    "kernel_bytes": 15922656,
-    "kernel_uuid": "9EF5EBB6-46DD-3953-84D1-C028F5618864",
-    "artifact_id": 13539790538,
-    "archive_sha256": "039656570716e80b34ef143b0222ae345723b6ac9acf7f9d5e672ab160469932",
-    "download_verification": "passed",
-    "actual_aes_pthread_and_panic_symbols_verification": "passed",
-    "actual_cbc_mode_descriptors": "both256-bytecontexts/16-byteblocks; valid function pointers",
-    "license_verification": "passed",
-    "linked_table_storage_verification": "passed",
-    "legacy_aes_bearssl_commit": "7bea48e5e850ab4cafbe68d3765cdaba13a86d6f",
-    "full_corecrypto_provider_registered": false,
-    "qemu_result": "150-second virtual GIC/timer control shows pthread initialization complete, Skywalk self-tests passed, IOMedia/Apple_HFS root wait. CPU_idle snapshot; no visible panic. Host-only, not full boot.",
-    "prepared_test_image": "0008",
-    "prepared_boot_sha256": "8115cf14c36fea21efe4c411dbc4f53f8ed8eebdf6f30f95cd088b3871df893a",
-    "hardware_boot_attempted": true,
-    "partition_write_commands_issued": false,
-    "root_filesystem_included": false,
-    "ios_userland_included": false,
-    "hardware_result": "Image0008 phone photo directly shows pthread initialization complete, Skywalk PASSED and IOMedia/Apple_HFS root-device wait; no panic visible in snapshot. Earlier AES fault passed by later source call ordering. No root mount or iOS userland.",
-    "hardware_photo_sha256": "a313f7d0baf1faeb318035989223f95ded60f0d672a0f92d82c8510577c4524a",
-    "pthread_init_completion_reported_on_phone": true,
-    "root_device_wait_visible_on_phone": true,
-    "panic_visible_in_phone_snapshot": false,
-    "complete_boot_confirmed": false,
-    "ios_userland_started": false
+    "ios_full_userspace_included": false,
+    "hardware_photo_received": false
   }
 }
