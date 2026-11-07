@@ -60,6 +60,12 @@ def check(source, helper, pthread, bearssl):
     assert 'kfree_type(struct mockfs_fsnode, fsnp);' in nodes
     assert 'memdev_info.mi_mdev && memdev_info.mi_phys' in (source / 'bsd/miscfs/mockfs/mockfs_vfsops.c').read_text()
     shims = (source / 'bsd/pthread/pthread_shims.c').read_text()
+    opaque = (source / 'bsd/sys/pthread_internal.h').read_text()
+    assert 'char opaque[56] __attribute__((aligned(8)));' in opaque
+    assert 'char opaque[48];' in opaque
+    provider = (source / 'bsd/miami_pthread/kern/kern_internal.h').read_text()
+    assert '_Static_assert(sizeof(struct ksyn_waitq_element) == 56' in provider
+    assert '_Static_assert(_Alignof(struct ksyn_waitq_element) == 8' in provider
     assert 'panic("pthread kernel extension not loaded (function table is NULL).");' in shims
     assert 'MIAMI PTHREAD: kernel initialization complete' in shims
     init = (source / 'bsd/miami_pthread/kern/miami_pthread_init.c').read_text()

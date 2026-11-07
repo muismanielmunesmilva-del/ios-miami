@@ -31,6 +31,16 @@ def stage(tree, source):
         raise ValueError('Unexpected Apple libpthread commit')
     if (tree / ROOT).exists():
         raise ValueError('Use a fresh XNU tree for pthread integration')
+    # XNU embeds opaque storage in uthread, while the paired libpthread
+    # implementation accesses a trailing pointer at offset 48. Keep the
+    # original layout for other boards and provide pointer alignment here.
+    opaque = tree / 'bsd/sys/pthread_internal.h'
+    text = opaque.read_text()
+    text = replace_once(text, '\tchar opaque[48];',
+        '#if defined(ARM64_BOARD_CONFIG_MIAMI)\n'
+        '\tchar opaque[56] __attribute__((aligned(8)));\n'
+        '#else\n\tchar opaque[48];\n#endif')
+    opaque.write_bytes(text.encode())
     paths = git(source, 'ls-tree', '-r', '--name-only', 'HEAD', '--',
                 'kern', 'include', 'private').decode().splitlines()
     records = []
@@ -42,6 +52,11 @@ def stage(tree, source):
         data = git(source, 'show', 'HEAD:' + path)
         text = data.decode()
         destination = path
+        if path == 'kern/kern_internal.h':
+            text = replace_once(text, 'typedef struct ksyn_waitq_element * ksyn_waitq_element_t;',
+                '_Static_assert(sizeof(struct ksyn_waitq_element) == 56, "MIAMI pthread wait size mismatch");\n'
+                '_Static_assert(_Alignof(struct ksyn_waitq_element) == 8, "MIAMI pthread wait alignment mismatch");\n'
+                'typedef struct ksyn_waitq_element * ksyn_waitq_element_t;')
         if path == 'kern/kern_trace.h':
             text = replace_once(text, 'vm_kernel_unslide_or_perm_external(ptr, &unslid_ptr);',
                                 'vm_kernel_unslide_or_perm_external((vm_offset_t)ptr, &unslid_ptr);')
@@ -107,4 +122,5 @@ current_uthread(void)
                      '\tkprintf("MIAMI PTHREAD: kernel initialization complete\\n");\n#endif\n').encode())
     return {'repository': REPOSITORY, 'tag': TAG, 'commit': COMMIT,
             'registration': 'real pthread_start via EARLY_BOOT startup callback',
+            'wait_storage': 'MIAMI LP64 56 bytes, 8-byte aligned; provider size and alignment asserted',
             'panic_guard_retained': True, 'files': records}
