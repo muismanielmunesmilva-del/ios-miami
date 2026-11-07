@@ -6,7 +6,7 @@ only a small RAM-backed executable. It does not contain an iOS installation.
 
 ## Kernel path
 
-Four selected ios-sweet fixes (0021–0024), transformed to MIAMI names, enable
+Five selected ios-sweet fixes (0021–0025), transformed to MIAMI names, enable
 Apple's built-in `mockfs`, correct its typed node allocation, handle absent
 IOStorageFamily classes for memory-root selection, use XNU's existing SHA-256
 implementation for legacy wrappers/code-signing page hashes, and route virtual
@@ -48,11 +48,17 @@ boundary, large and chunked-input cases. The existing pthread/AES/source and
 panic-console checks pass. The loader tests execute its actual C validator
 against a real signed probe plus synthetic-kernel fixtures, rejecting malformed
 RAM handoffs and altered signed code. Cross-compilation/link and both workflow
-syntax checks pass. A complete kernel build and runtime first-process test
-are still pending; no image0009 is ready or sent yet.
+syntax checks pass. Full CI42294997601 passed, but the 150-second isolated host test found a
+kernel data abort at accelerate_entitlement_queries+0x1c, FAR0x1a0, before
+EL0 execution. This is the absent AMFI interface, not a successful PID1 test.
+The next revision stages the selected upstream no-entitlements interface,
+hardened to reject XML/DER entitlement blobs or existing entitlement objects.
+All privilege queries are denied. Normal CodeDirectory and page-hash checks
+remain. The policy harness checks these rejection cases; the real kernel
+build verifies Apple's actual interface ABI. No image0009 has been sent.
 
 Both workflows build/package the same static probe, require actual mockfs and
-SHA256 symbols, validate the rooted payload and publish its hashes alongside
+SHA256/AMFI symbols, validate the rooted payload and publish its hashes alongside
 the kernel. A successful host runtime test must show PID1 and repeated
 heartbeats, with independent EL0/SVC trace evidence. A compiled image alone
 does not establish userspace execution or an iOS boot.

@@ -53,6 +53,7 @@ def check(source, helper, pthread, bearssl):
     run(sys.executable, ROOT / 'tests/check-panic.py', source)
     run(sys.executable, ROOT / 'tests/check-aes.py', source)
     run(sys.executable, ROOT / 'tests/check-sha256.py', source)
+    run(sys.executable, ROOT / 'tests/check-amfi.py', source)
     assert 'fifo mockfs fs_compression' in (source / 'config/MASTER.arm64.miami').read_text()
     nodes = (source / 'bsd/miscfs/mockfs/mockfs_fsnode.c').read_text()
     assert '*fsnpp = kalloc_type(struct mockfs_fsnode,' in nodes
