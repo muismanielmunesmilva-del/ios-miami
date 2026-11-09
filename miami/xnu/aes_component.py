@@ -1,4 +1,4 @@
-"""Stage the audited ios-sweet legacy AES/MD5 adapters and pinned BearSSL C code."""
+"""Stage the audited ios-sweet legacy AES/MD5/SHA-1/SHA-384/SHA-512 adapters and pinned BearSSL C code."""
 import hashlib
 from pathlib import Path
 import subprocess
@@ -8,7 +8,9 @@ REPOSITORY = 'https://www.bearssl.org/git/BearSSL'
 MIRROR = 'https://github.com/status-im/BearSSL.git'
 ROOT = 'libkern/crypto/miami_bearssl'
 UNITS = ('aes_ct', 'aes_ct_enc', 'aes_ct_dec', 'aes_ct_cbcenc', 'aes_ct_cbcdec')
-MD5_FILES = ('src/hash/md5.c', 'src/codec/dec32le.c', 'src/codec/enc32le.c')
+HASH_FILES = ('src/hash/md5.c', 'src/codec/dec32le.c', 'src/codec/enc32le.c',
+              'src/hash/sha1.c', 'src/codec/dec32be.c', 'src/codec/enc32be.c',
+              'src/hash/sha2big.c', 'src/codec/dec64be.c', 'src/codec/enc64be.c')
 
 
 def git(tree, *args, data=None):
@@ -20,7 +22,7 @@ def stage(tree, source):
     if git(source, 'rev-parse', 'HEAD').decode().strip() != COMMIT:
         raise ValueError('Unexpected BearSSL commit')
     if (tree / ROOT).exists():
-        raise ValueError('Use a fresh XNU tree for AES/MD5 integration')
+        raise ValueError('Use a fresh XNU tree for AES/MD5/SHA-1/SHA-512 integration')
     port = Path(__file__).resolve().parents[2]
     patch_dir = tree.parent / 'miami-required-patches'
     patch_dir.mkdir(exist_ok=True)
@@ -34,10 +36,15 @@ def stage(tree, source):
     git(tree, 'apply', '--check', '--whitespace=nowarn', '-', data=md5_patch)
     git(tree, 'apply', '--whitespace=nowarn', '-', data=md5_patch)
     (patch_dir / '0027-miami-bearssl-md5.patch').write_bytes(md5_patch)
+    sha1_original = (port / 'xnu/patches/0032-sweet-bearssl-sha1.patch').read_bytes().replace(b'\r\n', b'\n')
+    sha1_patch = sha1_original.replace(b'SWEET', b'MIAMI').replace(b'sweet', b'miami')
+    git(tree, 'apply', '--check', '--whitespace=nowarn', '-', data=sha1_patch)
+    git(tree, 'apply', '--whitespace=nowarn', '-', data=sha1_patch)
+    (patch_dir / '0032-miami-bearssl-sha1.patch').write_bytes(sha1_patch)
     paths = git(source, 'ls-tree', '-r', '--name-only', 'HEAD', '--', 'inc').decode().splitlines()
     paths += ['src/inner.h', 'src/config.h', 'LICENSE.txt']
     paths += ['src/symcipher/' + unit + '.c' for unit in UNITS]
-    paths += list(MD5_FILES)
+    paths += list(HASH_FILES)
     records = []
     for path in paths:
         if path.startswith('inc/') and not path.endswith('.h'):
@@ -61,8 +68,13 @@ def stage(tree, source):
             'md5_patch': '0027-sweet-bearssl-md5.patch',
             'md5_input_sha256': hashlib.sha256(md5_original).hexdigest(),
             'md5_target_sha256': hashlib.sha256(md5_patch).hexdigest(),
+            'sha1_patch': '0032-sweet-bearssl-sha1.patch',
+            'sha1_input_sha256': hashlib.sha256(sha1_original).hexdigest(),
+            'sha1_target_sha256': hashlib.sha256(sha1_patch).hexdigest(),
             'legacy_modes': ['AES-CBC encrypt/decrypt', 'single-block ECB via zero-IV CBC',
-                             'MD5Init/MD5Update/MD5Final via BearSSL br_md5'],
-            'implementation': 'BearSSL aes_ct portable bitslice C and br_md5; no heap/SIMD/crypto extensions',
+                             'MD5Init/MD5Update/MD5Final via BearSSL br_md5',
+                             'SHA1Init/SHA1Update/SHA1Final via BearSSL br_sha1',
+                             'SHA384_Init/Update/Final and SHA512_Init/Update/Final via BearSSL br_sha2big'],
+            'implementation': 'BearSSL aes_ct portable bitslice C, br_md5, br_sha1, and br_sha2big; no heap/SIMD/crypto extensions',
             'full_corecrypto_provider_registered': False,
             'other_crypto_modes_unchanged': True, 'files': records}

@@ -7,10 +7,19 @@ import hfs_component
 PRE_HFS_PATCHES = ('0021-sweet-mockfs-ramdisk-root.patch',
                    '0022-sweet-ramdisk-root-without-iomedia.patch',
                    '0023-sweet-builtin-sha256-for-libkern.patch',
+                   '0033-sweet-bearssl-sha384-sha512.patch',
                    '0024-sweet-mockfs-virtual-ramdisk-io.patch',
                    '0025-sweet-builtin-amfi-no-entitlements.patch')
 POST_HFS_PATCHES = ('0035-sweet-amfi-entitlements-platform-binaries.patch',
-                    '0036-sweet-amfi-cs-signed.patch')
+                    '0036-sweet-amfi-cs-signed.patch',
+                    '0037-sweet-config-bindfs.patch',
+                    '0038-sweet-applekeystore.patch',
+                    '0039-sweet-coredump-default-off.patch',
+                    '0042-sweet-short-exec-log.patch',
+                    '0043-sweet-console-crash-log.patch',
+                    '0044-sweet-crash-log-reason.patch',
+                    '0050-sweet-sandbox-policy.patch',
+                    '0064-sweet-priv-work-interval.patch')
 
 
 def apply_patches(tree, names):
@@ -21,6 +30,15 @@ def apply_patches(tree, names):
     for name in names:
         original = (port / 'xnu/patches' / name).read_bytes().replace(b'\r\n', b'\n')
         patch = original.replace(b'SWEET', b'MIAMI').replace(b'sweet', b'miami')
+        if name in ('0035-sweet-amfi-entitlements-platform-binaries.patch', '0038-sweet-applekeystore.patch'):
+            patch = patch.replace(b'MIAMICPU', b'SweetCPU')
+            patch = patch.replace(b'MIAMIPlatformExpert', b'SweetPlatformExpert')
+            patch = patch.replace(b'MIAMIEntitlements', b'SweetEntitlements')
+            patch = patch.replace(b'MIAMIKeyStore', b'SweetKeyStore')
+            if name == '0038-sweet-applekeystore.patch':
+                patch = patch.replace(b"'qcom,kryo470'", b"'arm,cortex-a55'")
+        elif name == '0043-sweet-console-crash-log.patch':
+            patch = patch.replace(b'MIAMIKeyStore', b'SweetKeyStore')
         for flags in (['--check'], []):
             subprocess.run(['git', '-C', str(tree), 'apply', *flags,
                             '--whitespace=nowarn', '-'], input=patch, check=True)
@@ -150,12 +168,52 @@ miami_amfi_adjust_without_monitor(void *os_entitlements,
         raise ValueError('AMFI vnode_check_signature hook anchor changed')
     text = text.replace(old_hook, new_hook)
     provider.write_bytes(text.encode('utf-8'))
+    aks_cpp = tree / 'iokit/Kernel/arm/SweetKeyStore.cpp'
+    aks_text = aks_cpp.read_text()
+    old_aks_enum = '''\tkAKSGetDeviceState   = 17,
+\tkAKSAssertHold       = 26,
+\tkAKSAssertDrop       = 27,
+\tkAKSUnloadSessionBags = 55,
+\tkAKSNotifyStateSet   = 102,
+\tkAKSNotifyStateIsSet = 103,
+};'''
+    new_aks_enum = '''\tkAKSGetDeviceState   = 17,
+\tkAKSGetExtDeviceState = 35,     /* aks_get_extended_device_state */
+\tkAKSAssertHold       = 26,
+\tkAKSAssertDrop       = 27,
+\tkAKSUnloadSessionBags = 55,
+\tkAKSNotifyStateSet   = 102,
+\tkAKSNotifyStateIsSet = 103,
+\tkAKSAssertConsume    = 101,     /* aks_assert_consume */
+};'''
+    if aks_text.count(old_aks_enum) != 1:
+        raise ValueError('AKS enum anchor changed')
+    aks_text = aks_text.replace(old_aks_enum, new_aks_enum)
+    old_aks_switch = '''\tcase kAKSAssertHold:
+\tcase kAKSAssertDrop:
+\tcase kAKSUnloadSessionBags:
+\tcase kAKSNotifyStateSet:'''
+    new_aks_switch = '''\tcase kAKSAssertHold:
+\tcase kAKSAssertDrop:
+\tcase kAKSAssertConsume:
+\tcase kAKSUnloadSessionBags:
+\tcase kAKSNotifyStateSet:'''
+    if aks_text.count(old_aks_switch) != 1:
+        raise ValueError('AKS assert switch anchor changed')
+    aks_text = aks_text.replace(old_aks_switch, new_aks_switch)
+    old_aks_state = '\tcase kAKSGetDeviceState:\n\t\targs->scalarOutputCount = 0;'
+    new_aks_state = '\tcase kAKSGetDeviceState:\n\tcase kAKSGetExtDeviceState:\n\t\targs->scalarOutputCount = 0;'
+    if aks_text.count(old_aks_state) != 1:
+        raise ValueError('AKS device state switch anchor changed')
+    aks_text = aks_text.replace(old_aks_state, new_aks_state)
+    aks_cpp.write_bytes(aks_text.encode('utf-8'))
     entitlements_cpp = tree / 'iokit/Kernel/arm/SweetEntitlements.cpp'
     return {'filesystem': 'XNU mockfs (Mach-O RAMDisk) and built-in Apple OSS HFS+ (hfs-627.100.6)',
             'root_argument': 'rd=md0', 'physical_storage_driver_added': False,
-            'sha256': 'existing XNU ccsha256_ltc_di for legacy SHA256/code-signing page hashes',
-            'amfi': 'built-in XML entitlements (SweetEntitlements OSDictionary) + CS_PLATFORM_BINARY on rootfs + CS_SIGNED; fail-closed on malformed XML or DER-only blobs',
+            'sha256': 'existing XNU ccsha256_ltc_di for legacy SHA256/code-signing page hashes; BearSSL br_sha2big for SHA-384/SHA-512',
+            'amfi': 'built-in XML entitlements (SweetEntitlements OSDictionary) + CS_PLATFORM_BINARY on rootfs + CS_SIGNED + permissive Sandbox MAC policy; fail-closed on malformed XML or DER-only blobs',
             'amfi_source_sha256': hashlib.sha256(provider.read_bytes()).hexdigest(),
             'entitlements_source_sha256': hashlib.sha256(entitlements_cpp.read_bytes()).hexdigest(),
+            'aks_source_sha256': hashlib.sha256(aks_cpp.read_bytes()).hexdigest(),
             'hfs': hfs_info,
             'patches': records}

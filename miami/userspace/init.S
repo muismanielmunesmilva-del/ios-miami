@@ -14,6 +14,7 @@
 #define SYS_psynch_cvwait 305
 #define SYS_bsdthread_create 360
 #define SYS_bsdthread_register 366
+#define SYS_mac_syscall 381
 .text
 .globl _start
 .p2align 2
@@ -78,6 +79,24 @@ _start:
     cmp w9, #512
     b.hi amfi_failed
     add sp, sp, #512
+    /* Verify built-in permissive Sandbox MAC policy (0050):
+     * __mac_syscall("Sandbox", 0, NULL) == 0 and op 4 == ENOENT (2).
+     */
+    adr x0, sandbox_policy
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_mac_syscall
+    svc #0x80
+    b.cs amfi_no_sp_failed
+    cbnz x0, amfi_no_sp_failed
+    adr x0, sandbox_policy
+    mov x1, #4
+    mov x2, #0
+    mov x16, #SYS_mac_syscall
+    svc #0x80
+    b.cc amfi_no_sp_failed
+    cmp x0, #2
+    b.ne amfi_no_sp_failed
     adr x1, amfi_ok
     adr x2, amfi_ok_end
     sub x2, x2, x1
@@ -85,6 +104,7 @@ _start:
     b hfs_probe
 amfi_failed:
     add sp, sp, #512
+amfi_no_sp_failed:
     adr x1, amfi_error
     adr x2, amfi_error_end
     sub x2, x2, x1
@@ -134,6 +154,14 @@ hfs_probe:
     cmp w9, w11
     b.ne hfs_fail
     add sp, sp, #32
+    /* On HFS+ root, /usr/lib/dyld (MH_DYLINKER) runs first via LC_LOAD_DYLINKER,
+     * verifies the main binary's mach_header_64 pointer on the stack, sets
+     * x28 = 0x44594c44 ("DYLD"), and jumps to _start.
+     */
+    mov x9, #0x4c44
+    movk x9, #0x4459, lsl #16
+    cmp x28, x9
+    b.ne hfs_no_sp_fail
     adr x1, hfs_ok
     adr x2, hfs_ok_end
     sub x2, x2, x1
@@ -145,6 +173,7 @@ hfs_close_fail:
     svc #0x80
 hfs_fail:
     add sp, sp, #32
+hfs_no_sp_fail:
     adr x1, hfs_error
     adr x2, hfs_error_end
     sub x2, x2, x1
@@ -365,6 +394,8 @@ write_more:
     ret
 console_path:
     .asciz "/dev/console"
+sandbox_policy:
+    .asciz "Sandbox"
 root_marker_path:
     .asciz "/etc/miami-root"
 root_marker_expected:
@@ -373,16 +404,16 @@ hello:
     .ascii "\n*** MIAMI USERSPACE: PID=1 (getpid verified) ***\n"
 hello_end:
 amfi_ok:
-    .ascii "MIAMI AMFI: platform binary and XML entitlements verified\n"
+    .ascii "MIAMI AMFI: platform binary, XML entitlements and Sandbox verified\n"
 amfi_ok_end:
 amfi_error:
-    .ascii "MIAMI AMFI ERROR: csops status or entitlements check failed\n"
+    .ascii "MIAMI AMFI ERROR: csops, entitlements or Sandbox check failed\n"
 amfi_error_end:
 hfs_ok:
-    .ascii "MIAMI HFS+: /etc/miami-root verified\n"
+    .ascii "MIAMI HFS+: /usr/lib/dyld and /etc/miami-root verified\n"
 hfs_ok_end:
 hfs_error:
-    .ascii "MIAMI HFS+ ERROR: /etc/miami-root mismatch\n"
+    .ascii "MIAMI HFS+ ERROR: /usr/lib/dyld or /etc/miami-root check failed\n"
 hfs_error_end:
 heartbeat:
     .ascii "MIAMI PID1: heartbeat\n"

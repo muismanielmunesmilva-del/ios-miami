@@ -8,7 +8,10 @@ import struct
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
 import build as build_init
+import mkinit
+import verify_codesign_pages as cs_verifier
 
 BLOCK_SIZE = 4096
 TOTAL_BLOCKS = 32
@@ -18,6 +21,97 @@ SIG_HFSX = 0x4858
 ATTR_UNMOUNTED = 0x00000100
 ATTR_UNUSED_NODE_FIX = 0x80000000
 ROOT_MARKER_BYTES = b'MIAMI HFS+ ROOT OK\n'
+DYLD_IDENT = b'com.apple.dyld\0'
+DYLD_CODE_BYTES = bytes.fromhex(
+    'e98740f8'  # ldr x9, [sp], #8
+    '2a0140b9'  # ldr w10, [x9]
+    'eb599f52'  # mov w11, #0xfacf
+    'abddbf72'  # movk w11, #0xfeed, lsl #16
+    '5f010b6b'  # cmp w10, w11
+    'a1000054'  # b.ne 1f
+    '9c8889d2'  # mov x28, #0x4c44
+    '3c8ba8f2'  # movk x28, #0x4459, lsl #16
+    '29011091'  # add x9, x9, #0x400
+    '20011fd6'  # br x9
+    '00000014'  # 1: b 1b
+)
+
+
+def build_dyld():
+    """Build a minimal signed MH_DYLINKER (/usr/lib/dyld) for HFS+ root boot."""
+    seg_size = 0x4000
+    code_off = 0x400
+    saved_ident = mkinit.IDENT
+    try:
+        mkinit.IDENT = DYLD_IDENT
+        sig_size = len(mkinit.code_signature(bytes(seg_size), seg_size, seg_size, None))
+        sect = struct.pack('<16s16sQQIIIIIIII', b'__text', b'__TEXT', code_off, len(DYLD_CODE_BYTES),
+                           code_off, 3, 0, 0, mkinit.S_ATTR_CODE, 0, 0, 0)
+        thread = struct.pack('<IIII', mkinit.LC_UNIXTHREAD, 16 + 4 * mkinit.ARM_THREAD_STATE64_COUNT,
+                             mkinit.ARM_THREAD_STATE64, mkinit.ARM_THREAD_STATE64_COUNT)
+        state = [0] * 33
+        state[32] = code_off
+        thread += struct.pack('<33QII', *state, 0, 0)
+        cmds = [
+            mkinit.segment('__TEXT', 0, seg_size, 0, seg_size, mkinit.VM_PROT_R | mkinit.VM_PROT_X, [sect]),
+            mkinit.segment('__LINKEDIT', seg_size, seg_size, seg_size, sig_size, mkinit.VM_PROT_R),
+            thread,
+            struct.pack('<4I', mkinit.LC_CODE_SIGNATURE, 16, seg_size, sig_size),
+        ]
+        lc = b''.join(cmds)
+        header = struct.pack('<8I', mkinit.MH_MAGIC_64, mkinit.CPU_TYPE_ARM64, 0, 7,
+                             len(cmds), len(lc), mkinit.MH_NOUNDEFS, 0)
+        image = bytearray(seg_size)
+        image[:32 + len(lc)] = header + lc
+        image[code_off:code_off + len(DYLD_CODE_BYTES)] = DYLD_CODE_BYTES
+        sig = bytearray(mkinit.code_signature(bytes(image), seg_size, seg_size, None))
+        # Clear CS_EXECSEG_MAIN_BINARY on MH_DYLINKER CodeDirectory.
+        cd_off = struct.unpack_from('>I', sig, 16)[0]
+        struct.pack_into('>Q', sig, cd_off + 80, 0)
+        return bytes(image) + bytes(sig)
+    finally:
+        mkinit.IDENT = saved_ident
+
+
+def validate_dyld(data):
+    if len(data) < 0x4000 or len(data) > 0x8000:
+        raise ValueError('MH_DYLINKER image size out of bounds')
+    magic, cpu, subtype, kind, count, cmdbytes, flags, _ = struct.unpack_from('<8I', data)
+    if (magic, cpu, subtype, kind, count, flags) != (0xfeedfacf, 0x100000c, 0, 7, 4, 1):
+        raise ValueError('Invalid MH_DYLINKER Mach-O header')
+    if data[0x400:0x400 + len(DYLD_CODE_BYTES)] != DYLD_CODE_BYTES:
+        raise ValueError('MH_DYLINKER _dyld_start machine code mismatch')
+    cs = cs_verifier.inspect(data)
+    if cs['page_hashes'] != 'PASS':
+        raise ValueError('MH_DYLINKER CodeDirectory verification failed')
+    return {'type': 'mh-dylinker', 'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+
+
+def add_dylinker_command(launchd_bytes):
+    """Return a copy of launchd_bytes with LC_LOAD_DYLINKER (/usr/lib/dyld) and re-signed page 0."""
+    build_init.validate(launchd_bytes)
+    magic, cpu, subtype, kind, count, cmdbytes, flags, reserved = struct.unpack_from('<8I', launchd_bytes)
+    if count == 6:
+        return launchd_bytes
+    dylinker_cmd = struct.pack('<III', 0xe, 32, 12) + b'/usr/lib/dyld\0\0\0\0\0\0\0'
+    # Insert LC_LOAD_DYLINKER immediately before LC_CODE_SIGNATURE (last 16-byte command).
+    cs_cmd_off = 32 + cmdbytes - 16
+    cs_cmd = launchd_bytes[cs_cmd_off:32 + cmdbytes]
+    new_cmds = launchd_bytes[32:cs_cmd_off] + dylinker_cmd + cs_cmd
+    new_header = struct.pack('<8I', magic, cpu, subtype, kind, count + 1, len(new_cmds), flags, reserved)
+    image = bytearray(launchd_bytes[:0x4000])
+    image[:32 + len(new_cmds)] = new_header + new_cmds
+    saved_ident = mkinit.IDENT
+    try:
+        mkinit.IDENT = b'org.miami.init\0'
+        sig = mkinit.code_signature(bytes(image), 0x4000, 0x4000, build_init.ENTITLEMENTS_XML)
+    finally:
+        mkinit.IDENT = saved_ident
+    out = bytes(image) + sig
+    info = build_init.validate(out)
+    if info.get('dylinker') != '/usr/lib/dyld':
+        raise ValueError('HFS+ launchd missing /usr/lib/dyld LC_LOAD_DYLINKER')
+    return out
 
 
 def u16_name(text):
@@ -94,12 +188,17 @@ def btree_header_node(tree_depth, root_node, leaf_records, first_leaf, last_leaf
 
 
 def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
+    launchd_bytes = add_dylinker_command(launchd_bytes)
     init_info = build_init.validate(launchd_bytes)
+    dyld_bytes = build_dyld()
+    validate_dyld(dyld_bytes)
     launchd_blocks = (len(launchd_bytes) + BLOCK_SIZE - 1) // BLOCK_SIZE
     marker_blocks = (len(marker_bytes) + BLOCK_SIZE - 1) // BLOCK_SIZE
+    dyld_blocks = (len(dyld_bytes) + BLOCK_SIZE - 1) // BLOCK_SIZE
     launchd_start = 5
     marker_start = launchd_start + launchd_blocks
-    used_low_blocks = marker_start + marker_blocks
+    dyld_start = marker_start + marker_blocks
+    used_low_blocks = dyld_start + dyld_blocks
     if used_low_blocks >= TOTAL_BLOCKS - 1:
         raise ValueError('HFS+ root image contents exceed 32-block allocation')
     free_blocks = (TOTAL_BLOCKS - 1) - used_low_blocks
@@ -112,11 +211,12 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
 
     # Catalog B-Tree (blocks 3..4): header node 0 + leaf node 1.
     # Sorted by (parentID ascending, case-folded UTF-16 name ascending):
-    #   (1, "MiamiRoot") -> folderID 2 (valence 3: dev, etc, sbin)
+    #   (1, "MiamiRoot") -> folderID 2 (valence 4: dev, etc, sbin, usr)
     #   (2, "")          -> folder thread (1, "MiamiRoot")
     #   (2, "dev")       -> folderID 16 (valence 0)
     #   (2, "etc")       -> folderID 17 (valence 1: miami-root)
     #   (2, "sbin")      -> folderID 18 (valence 1: launchd)
+    #   (2, "usr")       -> folderID 21 (valence 1: lib)
     #   (16, "")         -> folder thread (2, "dev")
     #   (17, "")         -> folder thread (2, "etc")
     #   (17, "miami-root")-> fileID 20 (/etc/miami-root)
@@ -124,12 +224,18 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
     #   (18, "launchd")  -> fileID 19 (/sbin/launchd)
     #   (19, "")         -> file thread (18, "launchd")
     #   (20, "")         -> file thread (17, "miami-root")
+    #   (21, "")         -> folder thread (2, "usr")
+    #   (21, "lib")      -> folderID 22 (valence 1: dyld)
+    #   (22, "")         -> folder thread (21, "lib")
+    #   (22, "dyld")     -> fileID 23 (/usr/lib/dyld)
+    #   (23, "")         -> file thread (22, "dyld")
     leaf_items = [
-        (1, 'MiamiRoot', folder_record(2, 3, 0o040755)),
+        (1, 'MiamiRoot', folder_record(2, 4, 0o040755)),
         (2, '', thread_record(3, 1, 'MiamiRoot')),
         (2, 'dev', folder_record(16, 0, 0o040755)),
         (2, 'etc', folder_record(17, 1, 0o040755)),
         (2, 'sbin', folder_record(18, 1, 0o040755)),
+        (2, 'usr', folder_record(21, 1, 0o040755)),
         (16, '', thread_record(3, 2, 'dev')),
         (17, '', thread_record(3, 2, 'etc')),
         (17, 'miami-root', file_record(20, marker_bytes, marker_start, 0o100644)),
@@ -137,6 +243,11 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
         (18, 'launchd', file_record(19, launchd_bytes, launchd_start, 0o100755)),
         (19, '', thread_record(4, 18, 'launchd')),
         (20, '', thread_record(4, 17, 'miami-root')),
+        (21, '', thread_record(3, 2, 'usr')),
+        (21, 'lib', folder_record(22, 1, 0o040755)),
+        (22, '', thread_record(3, 21, 'lib')),
+        (22, 'dyld', file_record(23, dyld_bytes, dyld_start, 0o100755)),
+        (23, '', thread_record(4, 22, 'dyld')),
     ]
     sort_keys = [(pid, name.lower()) for pid, name, _ in leaf_items]
     if sort_keys != sorted(sort_keys):
@@ -159,8 +270,8 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
     struct.pack_into('>HH17IQ', vh, 0,
                      SIG_HFSPLUS, 4, ATTR_UNMOUNTED | ATTR_UNUSED_NODE_FIX,
                      0x4846532B, 0, 0, 0, 0, 0,
-                     2, 3, BLOCK_SIZE, TOTAL_BLOCKS, free_blocks,
-                     used_low_blocks, BLOCK_SIZE, BLOCK_SIZE, 21,
+                     3, 5, BLOCK_SIZE, TOTAL_BLOCKS, free_blocks,
+                     used_low_blocks, BLOCK_SIZE, BLOCK_SIZE, 24,
                      1, 1)
     vh[112:192] = fork_data(BLOCK_SIZE, 1, 1, BLOCK_SIZE)          # allocationFile
     vh[192:272] = fork_data(BLOCK_SIZE, 2, 1, BLOCK_SIZE)          # extentsFile
@@ -176,6 +287,7 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
     image[4 * BLOCK_SIZE:5 * BLOCK_SIZE] = catalog_node1
     image[launchd_start * BLOCK_SIZE:launchd_start * BLOCK_SIZE + len(launchd_bytes)] = launchd_bytes
     image[marker_start * BLOCK_SIZE:marker_start * BLOCK_SIZE + len(marker_bytes)] = marker_bytes
+    image[dyld_start * BLOCK_SIZE:dyld_start * BLOCK_SIZE + len(dyld_bytes)] = dyld_bytes
     image[IMAGE_BYTES - 1024:IMAGE_BYTES - 512] = vh
     validate_hfs(image)
     return bytes(image), init_info
@@ -203,14 +315,15 @@ def validate_hfs(data):
         raise ValueError('HFS+ extents overflow fork invalid')
     if (cat_size, cat_blks, cat_start, cat_cnt) != (2 * BLOCK_SIZE, 2, 3, 2):
         raise ValueError('HFS+ catalog fork invalid')
-    # Verify Catalog leaf node contains /sbin/launchd and /etc/miami-root and
-    # validate the embedded /sbin/launchd Mach-O signature and page hashes.
+    # Verify Catalog leaf node contains /sbin/launchd, /etc/miami-root, and
+    # /usr/lib/dyld, and validate Mach-O signatures and page hashes.
     leaf = data[4 * BLOCK_SIZE:5 * BLOCK_SIZE]
     _, _, kind, height, nrecs, _ = struct.unpack_from('>IIbBHH', leaf, 0)
     if (kind, height) != (-1, 1) or nrecs < 6:
         raise ValueError('HFS+ catalog leaf node header invalid')
     launchd_found = None
     marker_found = None
+    dyld_found = None
     for i in range(nrecs):
         rec_off = struct.unpack_from('>H', leaf, BLOCK_SIZE - 2 * (i + 1))[0]
         next_off = struct.unpack_from('>H', leaf, BLOCK_SIZE - 2 * (i + 2))[0]
@@ -231,11 +344,14 @@ def validate_hfs(data):
                 launchd_found = build_init.validate(file_bytes)
             elif (parent_id, name) == (17, 'miami-root'):
                 marker_found = file_bytes
-    if not launchd_found or marker_found != ROOT_MARKER_BYTES:
-        raise ValueError('HFS+ image missing verified /sbin/launchd or /etc/miami-root')
+            elif (parent_id, name) == (22, 'dyld'):
+                dyld_found = validate_dyld(file_bytes)
+    if not launchd_found or launchd_found.get('dylinker') != '/usr/lib/dyld' or marker_found != ROOT_MARKER_BYTES or not dyld_found:
+        raise ValueError('HFS+ image missing verified /sbin/launchd, /usr/lib/dyld or /etc/miami-root')
     return {'type': 'hfsplus', 'sha256': hashlib.sha256(data).hexdigest(),
             'bytes': len(data), 'block_size': BLOCK_SIZE, 'total_blocks': total_blks,
-            'files': int(file_cnt), 'folders': int(dir_cnt), 'launchd': launchd_found}
+            'files': int(file_cnt), 'folders': int(dir_cnt),
+            'launchd': launchd_found, 'dyld': dyld_found}
 
 
 def build(output, launchd_path=None):

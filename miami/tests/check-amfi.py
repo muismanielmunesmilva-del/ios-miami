@@ -20,6 +20,9 @@ assert 'amfi_interface_register(&miami_amfi);' in source
 assert 'STARTUP(EARLY_BOOT, STARTUP_RANK_MIDDLE, miami_amfi_register)' in source
 assert 'miami_amfi_policy_register(void)' in source
 assert 'miami_amfi_policy_register();' in bsd_init
+assert 'miami_sandbox_syscall(' in source
+assert 'miami_sandbox_priv_grant(' in source
+assert 'mac_policy_register(&miami_sandbox_mac_conf' in source
 assert 'class SweetEntitlements : public OSObject' in ent_cpp
 assert 'OSUnserializeXML(text, text_len + 1)' in ent_cpp
 assert 'miami_entitlements_copy_xml' in ent_cpp
@@ -27,6 +30,9 @@ assert 'miami_entitlements_copy_xml' in ent_cpp
 start = source.index('/* The entitlements object of a process\'s main binary, or NULL. */')
 end = source.index('static const struct mac_policy_ops miami_amfi_mac_ops')
 body = source[start:end]
+sb_start = source.index('#define MIAMI_PRIV_LOG_MAX')
+sb_end = source.index('static const struct mac_policy_ops miami_sandbox_mac_ops')
+sb_body = source[sb_start:sb_end]
 
 harness = r'''
 #include <assert.h>
@@ -42,11 +48,14 @@ harness = r'''
 #define STARTUP(a, b, c)
 typedef int kern_return_t;
 typedef int cpu_type_t;
+typedef uintptr_t user_addr_t;
+typedef void *kauth_cred_t;
 typedef uint32_t CEError_t;
 typedef void *CEQuery_t;
 typedef void *CEQueryContext_t;
 enum { KERN_SUCCESS = 0, KERN_NOT_FOUND = 4, KERN_NOT_SUPPORTED = 46, KERN_DENIED = 53 };
-enum { EPERM = 1, EBADEXEC = 85 };
+enum { EPERM = 1, ENOENT = 2, EBADEXEC = 85 };
+#define PRIV_WORK_INTERVAL 14011
 #define CS_CDHASH_LEN 20
 #define CS_PLATFORM_BINARY 0x04000000U
 #define CS_SIGNED 0x20000000U
@@ -101,6 +110,16 @@ static void csblob_os_entitlements_set(struct cs_blob *b, void *e) { b->csb_enti
 static const char *csblob_get_identity(struct cs_blob *b) { (void)b; return "org.miami.init"; }
 static mount_t vnode_mount(struct vnode *vp) { return vp; }
 static uint32_t vfs_flags(mount_t mp) { return mp->mnt_flags; }
+static int proc_pid(struct proc *p) { (void)p; return 1; }
+static void proc_name(int pid, char *buf, int size) { (void)pid; snprintf(buf, (size_t)size, "launchd"); }
+static void proc_selfname(char *buf, int size) { snprintf(buf, (size_t)size, "launchd"); }
+static size_t strlcpy_compat(char *dst, const char *src, size_t sz) {
+    size_t n = strlen(src);
+    if (sz) { size_t c = n >= sz ? sz - 1 : n; memcpy(dst, src, c); dst[c] = '\0'; }
+    return n;
+}
+#undef strlcpy
+#define strlcpy strlcpy_compat
 
 struct fake_ent { int valid; CS_GenericBlob *xml; int ref; };
 static struct fake_ent global_ent;
@@ -144,7 +163,7 @@ void *miami_entitlements_copy_object(const void *ent, const char *name) {
 }
 unsigned int miami_entitlements_count(const void *ent) { return ent ? 2 : 0; }
 void osobject_release(void *object) { (void)object; }
-''' + body + r'''
+''' + body + sb_body + r'''
 int main(void) {
     miami_amfi_register();
     assert(registered_amfi == &miami_amfi);
@@ -198,6 +217,16 @@ int main(void) {
     assert(miami_amfi_adjust_without_monitor(b_bad_xml.csb_entitlements, &b_bad_xml) == KERN_DENIED);
     struct cs_blob b_hash_err = { .csb_ro_addr = &ro_marker, .csb_entitlements_blob = &valid_xml, .xml_err = EBADEXEC };
     assert(miami_amfi_vnode_check_signature(&root_vp, NULL, 0, &b_hash_err, &flags, NULL, 0, 0, NULL, NULL) == EBADEXEC);
+
+    /* 7. Permissive Sandbox policy syscalls and privilege grants. */
+    assert(miami_sandbox_syscall(&p, 0, 0) == 0);
+    assert(miami_sandbox_syscall(&p, 1, 0) == 0);
+    assert(miami_sandbox_syscall(&p, 4, 0) == ENOENT);
+    assert(miami_sandbox_syscall(&p, 5, 0) == ENOENT);
+    assert(miami_sandbox_syscall(&p, 6, 0) == ENOENT);
+    assert(miami_sandbox_syscall(&p, 0x43, 0) == ENOENT);
+    assert(miami_sandbox_priv_grant(NULL, PRIV_WORK_INTERVAL) == 0);
+    assert(miami_sandbox_priv_grant(NULL, 9999) == EPERM);
 
     return 0;
 }

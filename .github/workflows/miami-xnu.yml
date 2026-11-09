@@ -140,10 +140,10 @@ jobs:
           for symbol in _pthread_start _pthread_internal_functions __pthread_init __psynch_mutexwait _workq_setup_thread; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/pthread-verification.txt
           done
-          for symbol in _miami_aes_cbc_encrypt _miami_aes_cbc_decrypt _br_aes_ct_cbcenc_init _br_aes_ct_cbcenc_run _br_aes_ct_cbcdec_init _br_aes_ct_cbcdec_run _MD5Init _MD5Update _MD5Final _br_md5_init; do
+          for symbol in _miami_aes_cbc_encrypt _miami_aes_cbc_decrypt _br_aes_ct_cbcenc_init _br_aes_ct_cbcenc_run _br_aes_ct_cbcdec_init _br_aes_ct_cbcdec_run _MD5Init _MD5Update _MD5Final _br_md5_init _SHA1Init _SHA384_Init _SHA512_Init _br_sha1_init _br_sha384_init _br_sha512_init; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/aes-verification.txt
           done
-          for symbol in _mockfs_mountroot _mockfs_fsnode_create _miami_hfs_register _hfs_vfsops _SHA256_Init _ccsha256_ltc_di _miami_amfi_register _miami_amfi_policy_register _miami_entitlements_create _miami_amfi_adjust_without_monitor; do
+          for symbol in _mockfs_mountroot _mockfs_fsnode_create _miami_hfs_register _hfs_vfsops _SHA256_Init _ccsha256_ltc_di _miami_amfi_register _miami_amfi_policy_register _miami_entitlements_create _miami_amfi_adjust_without_monitor _miami_sandbox_mac_conf _miami_crash_log; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/ram-root-verification.txt
           done
           cp "$KERNEL" out/

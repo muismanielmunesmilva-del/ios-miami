@@ -57,9 +57,21 @@ def check(source, helper, pthread, bearssl, hfs):
     run(sys.executable, ROOT / 'tests/check-sha256.py', source)
     run(sys.executable, ROOT / 'tests/check-amfi.py', source)
     assert 'fifo mockfs miami_hfs fs_compression' in (source / 'config/MASTER.arm64.miami').read_text()
+    assert 'nullfs bindfs config_mnt_suid' in (source / 'config/MASTER.arm64.miami').read_text()
     assert (source / 'bsd/miami_hfs/miami_hfs_iokit.c').exists()
     assert (source / 'bsd/miami_hfs/miami_hfs_compat.h').exists()
     assert (source / 'bsd/miami_hfs/TargetConditionals.h').exists()
+    assert (source / 'iokit/Kernel/arm/SweetKeyStore.cpp').exists()
+    aks_text = (source / 'iokit/Kernel/arm/SweetKeyStore.cpp').read_text()
+    assert 'kAKSGetExtDeviceState = 35' in aks_text
+    assert 'kAKSAssertConsume    = 101' in aks_text
+    assert 'kAKSNotifyStateIsSet = 103' in aks_text
+    assert 'miami_hfs_link_note()' in (source / 'bsd/miami_hfs/core/hfs_catalog.c').read_text()
+    assert 'VNOP_EXCHANGE(*fvpp, *tvpp, 0, ctx)' in (source / 'bsd/vfs/kpi_vfs.c').read_text()
+    assert 'defined(ARM64_BOARD_CONFIG_MIAMI)' in (source / 'bsd/kern/kern_core.c').read_text()
+    assert 'miami_crash_log(' in (source / 'osfmk/kern/exception.c').read_text()
+    assert 'miami_crash_log(p->p_comm' in (source / 'bsd/kern/kern_exit.c').read_text()
+    assert 'exit_reason_get_string_desc(p->p_exit_reason)' in (source / 'bsd/kern/kern_exit.c').read_text()
     assert '#if CONFIG_PROTECT\n#include <AppleKeyStore/AppleKeyStoreFSServices.h>\n#endif' in (source / 'bsd/miami_hfs/core/hfs_iokit.h').read_text()
     bsd_init = (source / 'bsd/kern/bsd_init.c').read_text()
     assert 'miami_amfi_policy_register();' in bsd_init

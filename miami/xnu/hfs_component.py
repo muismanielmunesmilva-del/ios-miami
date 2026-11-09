@@ -9,7 +9,9 @@ REPOSITORY = 'https://github.com/apple-oss-distributions/hfs.git'
 ROOT = 'bsd/miami_hfs'
 PATCHES = ('0026-sweet-builtin-hfs.patch',
            '0029-sweet-unsealed-root-volume.patch',
-           '0031-sweet-read-write-root.patch')
+           '0031-sweet-read-write-root.patch',
+           '0041-sweet-hfs-link-notes.patch',
+           '0052-sweet-hfs-rename-swap.patch')
 TARGET_CONDITIONALS = b'''#ifndef __TARGETCONDITIONALS__
 #define __TARGETCONDITIONALS__
 #define TARGET_OS_MAC 1

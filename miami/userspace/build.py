@@ -34,11 +34,11 @@ def validate(data):
     if len(data) < 16384 or len(data) > MAX_IMAGE:
         raise ValueError('PID1 image size out of bounds')
     magic, cpu, subtype, kind, count, cmdbytes, flags, _ = struct.unpack_from('<8I', data)
-    if (magic, cpu, subtype, kind, count) != (0xfeedfacf, 0x100000c, 0, 2, 5):
+    if (magic, cpu, subtype, kind) != (0xfeedfacf, 0x100000c, 0, 2) or count not in (5, 6):
         raise ValueError('Expected static plain arm64 PID1 executable')
     if cmdbytes > 1024 - 32 or flags != 1:
         raise ValueError('Unexpected PID1 Mach-O header')
-    offset, entry, sig, text = 32, None, None, None
+    offset, entry, sig, text, dylinker = 32, None, None, None, None
     segments = []
     for _ in range(count):
         cmd, size = struct.unpack_from('<II', data, offset)
@@ -58,6 +58,12 @@ def validate(data):
             if size != 288 or struct.unpack_from('<II', data, offset + 8) != (6, 68):
                 raise ValueError('Invalid initial thread state')
             entry = struct.unpack_from('<Q', data, offset + 16 + 32 * 8)[0]
+        elif cmd == 0xe:
+            if dylinker is not None or size != 32 or struct.unpack_from('<I', data, offset + 8)[0] != 12:
+                raise ValueError('Invalid LC_LOAD_DYLINKER load command')
+            dylinker = data[offset + 12:offset + size].split(b'\0')[0].decode()
+            if dylinker != '/usr/lib/dyld':
+                raise ValueError('Unexpected LC_LOAD_DYLINKER path')
         elif cmd == 0x1d:
             sig = struct.unpack_from('<II', data, offset + 8)
         else:
@@ -117,14 +123,14 @@ def validate(data):
             raise ValueError('PID1 signed page hash mismatch')
     if b'MIAMI USERSPACE: PID=1 (getpid verified)' not in data[:limit]:
         raise ValueError('Wrong PID1 test executable')
-    if b'MIAMI AMFI: platform binary and XML entitlements verified' not in data[:limit]:
-        raise ValueError('Missing AMFI entitlements probe')
+    if b'MIAMI AMFI: platform binary, XML entitlements and Sandbox verified' not in data[:limit]:
+        raise ValueError('Missing AMFI/Sandbox probe')
     if b'MIAMI PSYNCH: cvwait timed out as expected' not in data[:limit]:
         raise ValueError('Missing pthread wait probe')
     if b'MIAMI THREADS: waiting thread signaled successfully' not in data[:limit]:
         raise ValueError('Missing cross-thread signal probe')
     return {'type': 'mockfs-macho', 'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
-            'entry': hex(entry), 'identity': 'org.miami.init',
+            'entry': hex(entry), 'identity': 'org.miami.init', 'dylinker': dylinker,
             'entitlements_xml': ent_blob is not None, 'signature_pages_verified': slots}
 
 
