@@ -2,19 +2,28 @@
 
 **Last Updated:** 2026-11-09
 
-## 1. Kernel AMFI & Entitlement Admission Blocker (Resolved Locally — Pending CI XNU Build `0012`)
+## 1. Kernel AMFI & Entitlement Admission Blocker (RESOLVED & QEMU-VERIFIED in `MIAMI_XNU_0012`)
 * **Observation:** Real iOS 16.7.16 `sbin/launchd` (`12370e5ee3...`, 541,600 bytes) carries an ad-hoc `CodeDirectory` (`flags=0x2`), an XML entitlements slot (`slot 5`, magic `0xfade7171`, 1,677 bytes), and a DER entitlements slot (`slot 7`, magic `0xfade7172`, 1,105 bytes).
-* **Resolution Implemented & Host-Verified:** Staged `0035-sweet-amfi-entitlements-platform-binaries.patch` and `0036-sweet-amfi-cs-signed.patch` (`SweetEntitlements.cpp` + MAC policy in `bsd/kern/miami_amfi.c` + `bsd/kern/bsd_init.c`) via `miami/xnu/ram_root.py`. Hardened `miami_amfi_attach_entitlements` and `miami_amfi_adjust_without_monitor` to parse XML entitlements (`OSUnserializeXML`), mark rootfs binaries with `CS_SIGNED | CS_PLATFORM_BINARY`, allow dual XML+DER blobs, and fail closed on DER-only or malformed XML blobs. Verified in `miami/tests/check-amfi.py` and `miami/tests/check-source.py`.
+* **Resolution Verified:** Compiled in GitHub Actions Run `42695357398` (`c6ae04e343fcad26caf4e6be8f5a8e1a4551cdbe`) and verified in 150-second QEMU run (`MIAMI_XNU_0012`): `SweetEntitlements.cpp` + `miami_amfi.c` parse XML entitlements into `OSDictionary`, mark rootfs binaries `CS_PLATFORM_BINARY | CS_SIGNED`, and pass EL0 `SYS_csops` (`CS_OPS_STATUS` and `CS_OPS_ENTITLEMENTS_BLOB`).
 
-## 2. Root Filesystem (`mockfs` vs. HFS+) & Loader 64 KiB Cap Blocker (Resolved Locally — Pending CI XNU Build `0012`)
+## 2. Root Filesystem (`mockfs` vs. HFS+) & Loader 64 KiB Cap Blocker (RESOLVED & QEMU-VERIFIED in `MIAMI_XNU_0012`)
 * **Observation:** `mockfs` wraps only a single flat Mach-O in `md0` as `/sbin/launchd`, and `miami/loader/plan.c` previously enforced `s->file_size <= 0x10000` (64 KiB) with a Mach-O header check.
-* **Resolution Implemented & Host-Verified:**
-  1. Staged Apple OSS `hfs-627.100.6` (`31d5ec238dfab485e78a9a30b8b92d13e8914f03`) via `miami/xnu/hfs_component.py` (`0026-sweet-builtin-hfs.patch`, `0029-sweet-unsealed-root-volume.patch`, `0031-sweet-read-write-root.patch`) and BearSSL MD5 (`0027-sweet-bearssl-md5.patch`) via `miami/xnu/aes_component.py`.
-  2. Added `miami/userspace/mkhfs.py` to build and validate a deterministic 128-KiB HFS+ root image (`miami-root.hfs`) containing `/sbin/launchd`, `/etc/miami-root`, and `/dev`.
-  3. Updated `miami/loader/plan.c` and `miami/loader/payload.py` to validate both static 64-KiB Mach-O (`mockfs`) and bounded HFS+ (`H+` / `HX`, up to 64 MiB) RAMDisk images. Verified in `miami/tests/check.py` and `miami/tests/check-source.py`.
+* **Resolution Verified:** Compiled Apple OSS `hfs-627.100.6` (`31d5ec238d`) and BearSSL MD5 into `kernel.development.miami` (`d60d968a...`), built a deterministic 128-KiB HFS+ root volume (`miami-root.hfs`) containing `/sbin/launchd`, `/etc/miami-root`, and `/dev`, and verified in 150-second QEMU run (`hfs: mounted MiamiRoot on device b(1, 0)` and `MIAMI HFS+: /etc/miami-root verified`).
 
-## 3. Next Blocker: macOS Xcode 16.4 Kernel Build (`0012`) & Dynamic Linker (`dyld`) Shared Cache
+## 3. Dynamic Linker (`dyld`) Handoff & Sandbox/Crypto/HFS+ Userspace Kernel Support (RESOLVED & QEMU-VERIFIED in `MIAMI_XNU_0013`)
 * **Observation:**
-  1. Compiling the newly staged XNU kernel (`MIAMI_XNU_0012` with XML AMFI + HFS+ + BearSSL MD5) requires triggering `.github/workflows/miami-xnu.yml` on the macOS 15 Intel runner (`macos-15-intel` with Xcode 16.4) after authorized push to the public CI repository.
-  2. Real iOS 16.7.16 `sbin/launchd` uses `/usr/lib/dyld` (`LC_LOAD_DYLINKER`) and links against `/usr/lib/libSystem.B.dylib` and `/usr/lib/libobjc.A.dylib`, which reside in `SystemOS` `dyld_shared_cache_arm64*` (44 files, 3.33 GB total). Android `userdata` on UFS must not be overwritten.
-* **Required Resolution:** After compiling and verifying `MIAMI_XNU_0012` on an HFS+ RAMDisk in QEMU (`miami-root.hfs`), construct a minimal/sliced read-only shared cache or multi-file `/usr/lib/dyld` test HFS+ RAMDisk within MIAMI's upper RAM.
+  1. Real iOS 16.7.16 `sbin/launchd` uses `/usr/lib/dyld` (`LC_LOAD_DYLINKER`) and issues `SYS___mac_syscall("Sandbox", ...)` and requests `PRIV_WORK_INTERVAL`.
+  2. Userspace and crypto libraries in XNU require BearSSL SHA-1 (`0032`), BearSSL SHA-384 & SHA-512 (`0033`), HFS+ link notes (`0041`), HFS+ `VFS_RENAME_SWAP` (`0052`), `bindfs` (`0037`), `AppleKeyStore` (`0038`, `0055`), `do_coredump = 0` (`0039`), exec short logging (`0042`), console crash logging (`0043`, `0044`), permissive `"Sandbox"` MAC policy (`0050`), and `PRIV_WORK_INTERVAL` (`0064`).
+* **Resolution Verified:**
+  1. Integrated all above patches and BearSSL source files into `miami/xnu/` and compiled in macOS Xcode 16.4 Actions Run `42709183824` (`9b978f02931a7b45f44daaa2cffdb01fc6ad55c5`).
+  2. Packaged `/usr/lib/dyld` (`MH_DYLINKER`) in `miami-root.hfs`, mapped by XNU `load_dylinker()`, which executes at EL0, verifies the main binary Mach-O header pointer passed on the stack by `exec_mach_imgact()`, sets `x28 = 0x44594c44` (`"DYLD"`), and transfers control to `/sbin/launchd`.
+  3. Verified in 150-second QEMU run (`MIAMI_XNU_0013`): `MIAMI Sandbox: launchd op 0`, `MIAMI Sandbox: launchd op 4`, `MIAMI AMFI: platform binary, XML entitlements and Sandbox verified`, `MIAMI HFS+: /usr/lib/dyld and /etc/miami-root verified`, 23 heartbeats, 93 EL0 SVC calls across 20 call sites (`check-pid1-runtime.py` exit code 0).
+
+## 4. Current Active Blocker: Full Dynamic Userland Dependencies & Shared Cache Mapping
+* **Observation:**
+  1. Full stock iOS 16.7.16 `sbin/launchd` links against `/usr/lib/libSystem.B.dylib` and `/usr/lib/libobjc.A.dylib`, which reside in the dyld shared cache (`dyld_shared_cache_arm64*`, ~3.33 GB total).
+  2. The phone has 128 GB UFS storage, but Android `userdata` and system partitions must never be erased or corrupted without explicit authorization.
+  3. `ios-sweet` implements UFS read/write and shared-cache mapping via patches `0028`, `0030`, `0034`, `0046`, `0069`.
+* **Required Resolution:**
+  1. Test physical device temporary boot of `MIAMI_XNU_0013` (`fastboot boot outputs\miami-xnu-boot-0013\boot.img`) to confirm hardware parity with QEMU (`Sandbox`, AMFI, `/usr/lib/dyld`, and HFS+ root verification).
+  2. Analyze UFS and device storage read paths on SM6375 (`holi`) to prepare for loading libraries or isolated disk images safely without touching Android partitions.

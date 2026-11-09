@@ -2,28 +2,21 @@
 
 **Last Updated:** 2026-11-09
 
-## 1. Completed in Current Session (2026-11-09)
-1. **Option A (AMFI XML Entitlements, `CS_PLATFORM_BINARY`, and `CS_SIGNED` Support):**
-   * Staged `0035-sweet-amfi-entitlements-platform-binaries.patch` and `0036-sweet-amfi-cs-signed.patch` (`SweetEntitlements.cpp`, `miami_amfi.c`, `bsd_init.c`) via `miami/xnu/ram_root.py` with fail-closed validation on malformed XML, hash mismatches, or DER-only entitlements and dual XML+DER support.
-   * Embedded XML entitlements (`com.motorola.miami.pid1`, `com.apple.private.miami.test-bool`, `com.apple.private.miami.test-string`) into `miami-init.macho` (`miami/userspace/build.py`) and added EL0 `SYS_csops` (`169`) `CS_OPS_STATUS` + `CS_OPS_ENTITLEMENTS_BLOB` verification in `miami/userspace/init.S`.
-   * Updated `miami/userspace/verify_codesign_pages.py` to verify all negative special slots (`-1..-5`) and verified with `check-codesign-pages.py` and `check-amfi.py`.
-2. **Option B (Built-in Apple OSS HFS+ `hfs-627.100.6`, BearSSL MD5, and Multi-File HFS+ RAMDisk Root):**
-   * Staged `0027-sweet-bearssl-md5.patch` and BearSSL MD5 (`miami/xnu/aes_component.py`) and verified with `miami/tests/check-md5.py`.
-   * Created `miami/xnu/hfs_component.py` to stage `hfs-627.100.6` (`31d5ec238d`) and apply `0026`, `0029`, and `0031`; wired `--hfs` into `prepare.py`, `configure-helper.py`, `check-source.py`, and `.github/workflows/miami-xnu*.yml`.
-   * Created `miami/userspace/mkhfs.py` to build and validate a deterministic 128-KiB HFS+ root image (`miami-root.hfs`) containing `/sbin/launchd`, `/etc/miami-root` (`MIAMI HFS+ ROOT OK\n`), and `/dev`.
-   * Updated `miami/loader/plan.c` and `miami/loader/payload.py` to support both static Mach-O (`mockfs`) and bounded HFS+ (`H+`/`HX`) RAMDisks on `md0`, and verified in `miami/tests/check.py` and `miami/tests/check-source.py`.
+## 1. Completed & Verified in Milestone `MIAMI_XNU_0013` (2026-11-09)
+1. **Cryptographic Providers & Userspace Support:**
+   * Staged BearSSL SHA-1 (`0032`), BearSSL SHA-384 & SHA-512 (`0033`), HFS+ link notes (`0041`), HFS+ `VFS_RENAME_SWAP` (`0052`), `bindfs` (`0037`), `AppleKeyStore` (`0038`, `0055`), `do_coredump = 0` (`0039`), exec short logging (`0042`), console crash logging (`0043`, `0044`), permissive `"Sandbox"` MAC policy (`0050`), and `PRIV_WORK_INTERVAL` (`0064`).
+   * Unit-tested cryptographic hashing (`check-sha256.py`) against `hashlib` across 80 cases and chunk sizes, and verified AMFI XML entitlements and Sandbox MAC syscall handling (`check-amfi.py`).
+2. **Dynamic Linker (`LC_LOAD_DYLINKER` / `/usr/lib/dyld`) & Multi-File HFS+ Catalog:**
+   * Added folders `/usr`, `/usr/lib`, and signed binary `/usr/lib/dyld` (`MH_DYLINKER`) to `miami-root.hfs` (`mkhfs.py`).
+   * Configured `/sbin/launchd` with `LC_LOAD_DYLINKER -> /usr/lib/dyld`.
+   * Verified `_dyld_start` execution at EL0: XNU maps `/usr/lib/dyld`, pushes the main binary Mach-O header pointer to `[sp]`, and enters `_dyld_start`, which verifies `MH_MAGIC_64`, sets `x28 = 0x44594c44` (`"DYLD"`), and jumps to `/sbin/launchd`.
+3. **Compilation & Architectural QEMU Verification:**
+   * Built `kernel.development.miami` on macOS Xcode 16.4 in GitHub Actions Run [`42709183824`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42709183824) (`9b978f02931a7b45f44daaa2cffdb01fc6ad55c5`).
+   * Packaged `boot.img` (`outputs/miami-xnu-boot-0013/boot.img`, SHA-256 `527a41aa80de84059f170b870582c0d00d477557e6623b7e3dff07e82a4b5bf6`).
+   * 150-second architectural QEMU run: **PASS** (all probes verified: `PID=1`, `Sandbox: launchd op 0/4`, `AMFI: platform binary, XML entitlements and Sandbox verified`, `HFS+: /usr/lib/dyld and /etc/miami-root verified`, `PSYNCH: cvwait timed out as expected`, `THREADS: waiting thread signaled successfully`, 23 heartbeats, 93 EL0 SVC calls across 20 call sites, `check-pid1-runtime.py` exit code 0).
 
-## 2. Next Concrete Engineering Task: Build & Verify `MIAMI_XNU_0012` (HFS+ RAMDisk + XML AMFI)
-1. **Authorize Git Checkpoint & Public CI Sync:**
-   * Commit the verified Option A + Option B changes in `ios-miami` (`miami-bringup`) and sync the public CI branch (`main` at `https://github.com/muismanielmunesmilva-del/ios-miami`) when authorized.
-2. **Trigger macOS Xcode 16.4 Kernel Build (`miami-xnu.yml`):**
-   * Run `miami-xnu.yml` on `macos-15-intel` to compile `kernel.development.miami` with XML AMFI (`0035`–`0036`), built-in HFS+ (`0026`, `0029`, `0031`), and BearSSL MD5 (`0027`).
-3. **Package & Verify `MIAMI_XNU_0012` in 150-Second QEMU Run:**
-   * Package `kernel.development.miami` with `miami-root.hfs` (`131,072` bytes) into `outputs/miami-xnu-boot-0012/boot.img`.
-   * Run the 150-second QEMU (`cortex-a55` `virt`) verification test to confirm:
-     * `hfs_mountroot` mounts `md0` as `/` (`HFS+`).
-     * `/sbin/launchd` (`PID=1`) executes with `CS_VALID | CS_ADHOC | CS_SIGNED | CS_PLATFORM_BINARY` (`0x24000003`) and retrieves its XML entitlements via `SYS_csops`.
-     * `/etc/miami-root` is opened and read from the HFS+ root volume (`MIAMI HFS+ ROOT OK`).
-     * Cross-thread `psynch_cvsignal` and 17 heartbeats complete without panic.
-4. **Stage Multi-File `dyld` + `launchd` HFS+ RAMDisk Bring-Up:**
-   * Build a multi-file HFS+ RAMDisk containing `/usr/lib/dyld` (`922,912` bytes from iOS 16.7.16) and a minimal dynamic Mach-O `/sbin/launchd` test binary to verify XNU `load_dylinker` + `dyld` entry before introducing `libSystem` / shared-cache slices.
+## 2. Next Concrete Engineering Tasks
+1. **Physical Hardware Boot Test (`MIAMI_XNU_0013`):**
+   * When authorized by the user, test `outputs\miami-xnu-boot-0013\boot.img` via temporary `fastboot boot` on the Motorola Edge 30 Neo (`XT2245-1`) to confirm physical hardware execution of `/usr/lib/dyld` handoff, permissive Sandbox MAC policy, and HFS+ root file readback.
+2. **Prepare Real iOS 16 Shared Cache & UFS Storage Architecture:**
+   * Investigate SM6375 UFS controller registers and drivers (`0028`, `0030`, `0034`, `0069`) to enable reading disk images or large libraries from storage without writing to or modifying Android partitions.

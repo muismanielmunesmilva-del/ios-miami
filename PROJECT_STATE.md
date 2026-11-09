@@ -6,31 +6,28 @@
 **Public CI Repository:** `https://github.com/muismanielmunesmilva-del/ios-miami`
 
 ## 1. Current Verified State
-* **Boot Chain & Loader (`0005`):** AArch64 Linux-ABI `Image` packaged in a 96-MiB Android boot v3 + AVB (`NONE`) container for `fastboot boot`. Validates live FDT, reserved memory, upper RAM (`[0x180000000, 0x1bff00000)` + 1 MiB panic log at `0x1bff00000`), SDE autorefresh splash framebuffer (`[0x85200000, 0x85e00000)`), and copies/reads back XNU segments, ADT, and `boot_args` before branching with MMU off at EL1.
+* **Boot Chain & Loader (`0005`):** AArch64 Linux-ABI `Image` packaged in a 96-MiB Android boot v3 + AVB (`NONE`) container for `fastboot boot`. Validates live FDT, reserved memory, upper RAM (`[0x180000000, 0x1bff00000)` + 1 MiB panic log at `0x1bff00000`), SDE autorefresh splash framebuffer (`[0x85200000, 0x85e00000)`), and copies/reads back XNU segments, ADT, `boot_args`, and bounded RAMDisk (`mockfs` Mach-O up to 64 KiB or HFS+ volume up to 64 MiB) before branching with MMU off at EL1.
 * **XNU Kernel (`xnu-8796.141.3`, iOS 16 / macOS 13.5):**
   * Single-CPU (`MAX_CPUS=1`), `arm,cortex-a55` IOCPU matching (`MIDR=0x412fd050`), GICv3 (`GICD=0x0f200000`, `GICR=0x0f240000`), architectural virtual timer `INTID 19` @ 19.2 MHz.
   * 16K page tables (`TGran16=1`), Normal-NC/XN early and final splash framebuffer mappings (`768` 16K pages), 18-row protected first-panic screen.
   * Integrated Apple `libpthread-514.100.2` (`a6c70ca`) with 56-byte / 8-byte-aligned `ksyn_waitq_element` ABI.
-  * Integrated `BearSSL` (`7bea48e`) constant-time legacy AES-CBC provider (`g_crypto_funcs` fallback) and built-in XNU `ccsha256_ltc_di` SHA-256 wrapper.
-  * Integrated `mockfs` + `devfs` RAMDisk root (`rd=md0`) and built-in AMFI interface (`miami_amfi.c`).
-* **Latest Verified Delivery (`MIAMI_XNU_0011`):**
-  * Actions Run: `42349700687` (`215a2eeed0320f00938617762b3b9d44ada02a88`), also re-verified at `823adf1075` (Run `42409278880`).
-  * `boot.img` SHA-256: `7bf23e1c6c4a3f2134309ada6cdb5cc52cbdd5d9e6c4bbe071ec90401bb2670a` (`100,663,296` bytes).
-  * `kernel.development.miami` SHA-256: `9acdf2a6342cac42b999b7e5013bf381e3ae896bc089007ee42c00d5f8570e9f` (`15,925,816` bytes, `LC_UUID`: `31FFE095-E332-3661-BAD1-20CCFC297A6D`).
-  * QEMU 150s result: `PASS` (`PID=1`, `psynch_cvwait` timeout `0x13c`, cross-thread `bsdthread_create` + `psynch_cvsignal` waking actual waiter with `PTHRW_INC`, 17 heartbeats, 66 EL0 SVCs).
-  * Hardware result: Temporary `fastboot boot` accepted; user reported cross-thread signal success and heartbeats on phone (no photo). Zero partition writes ever issued.
+  * Integrated `BearSSL` (`7bea48e`) constant-time legacy AES-CBC (`g_crypto_funcs` fallback) and MD5 (`corecrypto_md5.c`), plus built-in XNU `ccsha256_ltc_di` SHA-256 wrapper.
+  * Integrated `mockfs`, `devfs`, and Apple OSS HFS+ (`hfs-627.100.6`, commit `31d5ec238d`) RAMDisk root (`rd=md0`).
+  * Integrated built-in AMFI interface (`miami_amfi.c` + `SweetEntitlements.cpp`) with `OSDictionary` XML entitlement parsing, rootfs `CS_PLATFORM_BINARY | CS_SIGNED` MAC policy, dual XML+DER entitlement admission, and fail-closed validation on malformed XML or DER-only blobs.
+* **Latest Verified Host Delivery (`MIAMI_XNU_0013`):**
+  * Actions Run: [`42709183824`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42709183824) (kernel CI commit `9b978f02931a7b45f44daaa2cffdb01fc6ad55c5`, branch `miami-ci-public` / `main`).
+  * `boot.img` SHA-256: `527a41aa80de84059f170b870582c0d00d477557e6623b7e3dff07e82a4b5bf6` (`100,663,296` bytes).
+  * `kernel.development.miami` SHA-256: `166c94e58cfa356bffb6512d8698764630bb9e92e5ea9f13387cd89da4de660e` (`16,472,952` bytes, `LC_UUID`: `4D194B4E-5205-325A-98C0-E5E3DDA5BA90`).
+  * `payload.bin` (HFS+ RAMDisk) SHA-256: `323b0008e1e0cf1e32db9c4cf495d89f033d9148442837bae8c09cd2582a8122` (`16,591,168` bytes).
+  * `miami-root.hfs` SHA-256: `2e07d565d801caf763bd1cd95f55dcd84f406cab98be81c29dec2b8f7c9843c2` (`131,072` bytes; contains `/sbin/launchd`, `/etc/miami-root`, and `/usr/lib/dyld`).
+  * `miami-init.macho` SHA-256: `b49bc2fc20d054ef1c75f2b0a644f33d1d35609c20789c84ffc20e5a9294c9a8` (`17,171` bytes).
+  * QEMU 150s result: `PASS` (`hfs: mounted MiamiRoot on device b(1, 0)`, `PID=1 (getpid verified)`, `MIAMI Sandbox: launchd op 0`, `MIAMI Sandbox: launchd op 4`, `MIAMI AMFI: platform binary, XML entitlements and Sandbox verified`, `MIAMI HFS+: /usr/lib/dyld and /etc/miami-root verified`, `MIAMI PSYNCH: cvwait timed out as expected`, `MIAMI THREADS: waiting thread signaled successfully`, 23 heartbeats, 93 EL0 SVCs across 20 call sites, `check-pid1-runtime.py` exit code 0).
+  * Features integrated in `0013`: BearSSL SHA-1 (`0032`), BearSSL SHA-384 & SHA-512 (`0033`), HFS+ link notes (`0041`), HFS+ `VFS_RENAME_SWAP` (`0052`), `bindfs` (`0037`), `AppleKeyStore` (`0038`, `0055`), `do_coredump = 0` (`0039`), exec short logging (`0042`), console crash logging (`0043`, `0044`), permissive `"Sandbox"` MAC policy (`0050`), `PRIV_WORK_INTERVAL` (`0064`), signed `/usr/lib/dyld` (`MH_DYLINKER`) execution before `/sbin/launchd`.
+  * Hardware result (`0013`): `not yet attempted` (awaiting user command `fastboot boot outputs\miami-xnu-boot-0013\boot.img`).
+* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0012`):**
+  * Actions Run: [`42695357398`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42695357398) (kernel CI commit `c6ae04e343fcad26caf4e6be8f5a8e1a4551cdbe`, loader/PID1 commit `6fc0f0d`).
+  * `boot.img` SHA-256: `14bf17878b396cb50244d0acf74fff2731f9d567b88c33ba3dd3bc598a405cdc` (`100,663,296` bytes).
+  * Hardware result (`0012`): **PASS (User Verified)** — temporary `fastboot boot` accepted; user confirmed `MIAMI PSYNCH: cvwait timed out as expected`, `MIAMI THREADS: waiting thread signaled successfully`, and repeating `MIAMI PID1: heartbeat` on the Motorola Edge 30 Neo screen. Zero partition writes ever issued.
 * **Real iOS 16.7.16 (`20H392`, `iPhone10,3`/`iPhone10,6`) Inspection State:**
   * Pinned `BuildManifest.plist` (`2d145210...`) and DMGs (`087-86698-044.dmg` OS, `087-86593-047.dmg` SystemOS, `087-86715-047.dmg` AppOS) verified via SHA-384 and CRC-32 in `ol\work\miami-private\`.
-  * Extracted plain-arm64 `sbin/launchd` (541,600 bytes, 127 4K CodeDirectory pages, XML + DER entitlements) and `usr/lib/dyld` (922,912 bytes, 220 4K CodeDirectory pages, no entitlements); page hashes independently verified (`outputs/ios16-bootstrap-codesign.json`).
-
-## 2. Completed Local Development Milestones (Option A + Option B)
-* **Option A (AMFI XML Entitlements, `CS_PLATFORM_BINARY`, and `CS_SIGNED` Support):**
-  * Staged `0035-sweet-amfi-entitlements-platform-binaries.patch` and `0036-sweet-amfi-cs-signed.patch` (`iokit/Kernel/arm/SweetEntitlements.cpp`, `bsd/kern/miami_amfi.c`, MAC policy registration in `bsd/kern/bsd_init.c`) via `miami/xnu/ram_root.py`.
-  * Hardened `miami_amfi_attach_entitlements` and `miami_amfi_adjust_without_monitor` to fail closed on unreadable XML, CodeDirectory special-slot hash mismatches, or DER-only entitlements while supporting dual XML+DER blobs (matching stock iOS 16.7.16 `sbin/launchd`).
-  * Embedded XML entitlements (`com.motorola.miami.pid1`, `com.apple.private.miami.test-bool`, `com.apple.private.miami.test-string`) into `miami-init.macho` (`miami/userspace/build.py`) and added EL0 `SYS_csops` (`169`) `CS_OPS_STATUS` (`CS_VALID | CS_ADHOC | CS_SIGNED | CS_PLATFORM_BINARY`) and `CS_OPS_ENTITLEMENTS_BLOB` verification in `miami/userspace/init.S`.
-  * Extended `miami/userspace/verify_codesign_pages.py` to verify all negative special slots (`-1..-special`, including slot `-5` XML entitlements) in addition to positive code page slots.
-* **Option B (Built-in Apple OSS HFS+ `hfs-627.100.6`, BearSSL MD5, and Multi-File HFS+ RAMDisk Root):**
-  * Staged `0027-sweet-bearssl-md5.patch` (`corecrypto_md5.c` + BearSSL `md5.c`, `dec32le.c`, `enc32le.c`) in `miami/xnu/aes_component.py` and verified with `miami/tests/check-md5.py`.
-  * Created `miami/xnu/hfs_component.py` to stage Apple OSS `hfs-627.100.6` (`31d5ec238dfab485e78a9a30b8b92d13e8914f03`) into `bsd/miami_hfs`, apply `0026-sweet-builtin-hfs.patch`, `0029-sweet-unsealed-root-volume.patch`, and `0031-sweet-read-write-root.patch`, and wired `--hfs` into `miami/xnu/prepare.py`, `miami/xnu/configure-helper.py`, and `.github/workflows/miami-xnu*.yml`.
-  * Created `miami/userspace/mkhfs.py` to deterministically build and independently validate a 128-KiB (32 x 4-KiB block) HFS+ root volume (`miami-root.hfs`) containing `/sbin/launchd`, `/etc/miami-root` (`MIAMI HFS+ ROOT OK\n`), and `/dev`, plus EL0 `/etc/miami-root` readback in `miami/userspace/init.S`.
-  * Updated `miami/loader/plan.c` and `miami/loader/payload.py` to validate both static 64-KiB Mach-O (`mockfs`) and bounded HFS+ (`H+` / `HX`, up to 64 MiB) RAMDisk images on `md0`.
+  * Extracted plain-arm64 `sbin/launchd` (541,600 bytes, 127 4K CodeDirectory pages, XML + DER entitlements) and `usr/lib/dyld` (922,912 bytes, 220 4K CodeDirectory pages, no entitlements); page and special-slot hashes independently verified (`outputs/ios16-bootstrap-codesign.json`).
