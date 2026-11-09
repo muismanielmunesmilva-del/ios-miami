@@ -86,6 +86,31 @@ static int adt_node(struct adt_check *c, unsigned depth, int parent_chosen)
     for (unsigned i = 0; i < children; ++i) if (adt_node(c, depth + 1, chosen)) return -1;
     return 0;
 }
+static uint64_t be(const uint8_t *p, unsigned count)
+{
+    uint64_t value = 0;
+    for (unsigned i = 0; i < count; ++i) value = (value << 8) | p[i];
+    return value;
+}
+static int valid_ramdisk_image(const uint8_t *image, uint64_t file_size)
+{
+    if (file_size >= MIAMI_PAGE && file_size <= 0x10000ULL &&
+        le(image, 4) == 0xfeedfacf && le(image + 4, 4) == 0x100000c &&
+        !le(image + 8, 4) && le(image + 12, 4) == 2 && le(image + 16, 4) == 5)
+        return 1;
+    if (file_size < 2 * MIAMI_PAGE || file_size > 0x4000000ULL || (file_size & (MIAMI_PAGE - 1)))
+        return 0;
+    uint16_t sig = (uint16_t)be(image + 1024, 2), ver = (uint16_t)be(image + 1026, 2);
+    if (!((sig == 0x482b && ver == 4) || (sig == 0x4858 && ver == 5)))
+        return 0;
+    uint32_t blk_size = (uint32_t)be(image + 1024 + 40, 4);
+    uint32_t total_blks = (uint32_t)be(image + 1024 + 44, 4);
+    if (blk_size != 4096 || (uint64_t)total_blks * blk_size != file_size)
+        return 0;
+    if (memcmp(image + 1024, image + file_size - 1024, 512))
+        return 0;
+    return 1;
+}
 static int root_arg(const char *s)
 {
     int roots = 0;
@@ -137,7 +162,7 @@ int miami_payload_plan(const void *bytes, size_t size, struct miami_plan *out)
     if (c.rd_count) {
         const struct miami_segment *s = &p->segs[p->nsegs - 1];
         if (p->nsegs < 2 || c.mmap_count != 1 || !s->file_size ||
-            s->file_size > 0x10000 || s->file_size < MIAMI_PAGE ||
+            s->file_size > 0x4000000ULL || s->file_size < MIAMI_PAGE ||
             s->vmsize != ((s->file_size + MIAMI_PAGE - 1) & ~(MIAMI_PAGE - 1)) ||
             c.rd_pa != MIAMI_RAM_BASE + s->vmaddr - p->virt_base ||
             c.rd_size != s->vmsize || s->vmaddr + s->vmsize != p->kernel_end ||
@@ -145,8 +170,7 @@ int miami_payload_plan(const void *bytes, size_t size, struct miami_plan *out)
         for (unsigned i = 0; i + 1 < p->nsegs; ++i)
             if (p->segs[i].vmaddr + p->segs[i].vmsize > s->vmaddr) return -10;
         const uint8_t *image = (const uint8_t *)bytes + s->file_off;
-        if (le(image, 4) != 0xfeedfacf || le(image + 4, 4) != 0x100000c ||
-            le(image + 8, 4) || le(image + 12, 4) != 2 || le(image + 16, 4) != 5) return -11;
+        if (!valid_ramdisk_image(image, s->file_size)) return -11;
     }
     out->entry_pa = MIAMI_RAM_BASE + p->entry_va - p->virt_base;
     out->adt_pa = MIAMI_RAM_BASE + end;

@@ -16,7 +16,7 @@ def configure(root):
     old = '    get_xnu\n    patches\n'
     if text.count(old) != 1:
         raise ValueError('Helper preparation hook anchor changed')
-    text = text.replace(old, '    get_xnu\n    python3 --version\n    python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py" "${WORK_DIR}/xnu" --pthread "${WORK_DIR}/pthread" --bearssl "${WORK_DIR}/bearssl"\n    patches\n')
+    text = text.replace(old, '    get_xnu\n    python3 --version\n    python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py" "${WORK_DIR}/xnu" --pthread "${WORK_DIR}/pthread" --bearssl "${WORK_DIR}/bearssl" --hfs "${WORK_DIR}/hfs"\n    patches\n')
     old = 'ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"'
     if text.count(old) != 1:
         raise ValueError('libfirehose arm64 build anchor changed')

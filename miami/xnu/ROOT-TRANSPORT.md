@@ -26,6 +26,14 @@ fits the current 64 KiB mockfs probe limit. Their CodeDirectory SHA-256 page
 hashes were independently checked (127 and 220 pages respectively), but
 neither CMS signatures nor Apple trust chains were verified. Local inspection
 staging contains these two files only and is explicitly marked not bootable.
+The real `launchd` signature superblob contains both XML and DER entitlement
+slots. Its CodeDirectory flags include ad-hoc signing (`0x2`), and its CMS
+wrapper is empty. The current MIAMI no-entitlements admission guard rejects
+those entitlement slots before reconstitution. Its trust-cache service is
+also unavailable. Therefore neither merely increasing the 64 KiB limit nor
+adding the two files would make the current kernel execute real launchd.
+Entitlement parsing and a defensible authenticity/trust policy need separate
+design and tests; CodeDirectory page hashes alone do not grant trust.
 
 The SystemOS dyld cache directory contains 44 entries totalling 3,330,359,296
 logical bytes, including a 592,101,376-byte symbols file. These are measured

@@ -2,15 +2,18 @@
  * Based on ios-sweet tools/sweet-init.S. Align SP before all stack accesses.
  * All mutable data is on the process stack. Never exits PID1.
  */
+#define SYS_read 3
 #define SYS_write 4
 #define SYS_open 5
+#define SYS_close 6
 #define SYS_getpid 20
 #define SYS_select 93
-#define SYS_psynch_cvwait 305
+#define SYS_csops 169
+#define SYS_mmap 197
 #define SYS_psynch_cvsignal 304
+#define SYS_psynch_cvwait 305
 #define SYS_bsdthread_create 360
 #define SYS_bsdthread_register 366
-#define SYS_mmap 197
 .text
 .globl _start
 .p2align 2
@@ -34,6 +37,120 @@ _start:
     adr x2, hello_end
     sub x2, x2, x1
     bl write_all
+    /* Verify built-in AMFI policy: CS_OPS_STATUS (0) must report
+     * CS_VALID (0x1) | CS_ADHOC (0x2) | CS_PLATFORM_BINARY (0x04000000) |
+     * CS_SIGNED (0x20000000), and CS_OPS_ENTITLEMENTS_BLOB (7) must return
+     * the embedded XML entitlements blob (magic 0xfade7171).
+     */
+    sub sp, sp, #512
+    str wzr, [sp]
+    mov x0, #0
+    mov x1, #0
+    mov x2, sp
+    mov x3, #4
+    mov x16, #SYS_csops
+    svc #0x80
+    b.cs amfi_failed
+    ldr w9, [sp]
+    mov w10, #0x0003
+    movk w10, #0x2400, lsl #16
+    and w9, w9, w10
+    cmp w9, w10
+    b.ne amfi_failed
+    stp xzr, xzr, [sp]
+    mov x0, #0
+    mov x1, #7
+    mov x2, sp
+    mov x3, #512
+    mov x16, #SYS_csops
+    svc #0x80
+    b.cs amfi_failed
+    ldr w9, [sp]
+    rev w9, w9
+    mov w10, #0x7171
+    movk w10, #0xfade, lsl #16
+    cmp w9, w10
+    b.ne amfi_failed
+    ldr w9, [sp, #4]
+    rev w9, w9
+    cmp w9, #32
+    b.ls amfi_failed
+    cmp w9, #512
+    b.hi amfi_failed
+    add sp, sp, #512
+    adr x1, amfi_ok
+    adr x2, amfi_ok_end
+    sub x2, x2, x1
+    bl write_all
+    b hfs_probe
+amfi_failed:
+    add sp, sp, #512
+    adr x1, amfi_error
+    adr x2, amfi_error_end
+    sub x2, x2, x1
+    bl write_all
+    b tick
+hfs_probe:
+    /* Optional secondary file check on HFS+ root (/etc/miami-root).
+     * On single-binary mockfs, open returns ENOTDIR/ENOENT and is skipped.
+     */
+    adr x0, root_marker_path
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs psynch_test
+    mov x20, x0
+    sub sp, sp, #32
+    stp xzr, xzr, [sp]
+    stp xzr, xzr, [sp, #16]
+    mov x0, x20
+    mov x1, sp
+    mov x2, #19
+    mov x16, #SYS_read
+    svc #0x80
+    mov x21, x0
+    b.cs hfs_close_fail
+    mov x0, x20
+    mov x16, #SYS_close
+    svc #0x80
+    cmp x21, #19
+    b.ne hfs_fail
+    ldr x9, [sp]
+    adr x10, root_marker_expected
+    ldr x11, [x10]
+    cmp x9, x11
+    b.ne hfs_fail
+    ldr x9, [sp, #8]
+    ldr x11, [x10, #8]
+    cmp x9, x11
+    b.ne hfs_fail
+    ldrh w9, [sp, #16]
+    ldrh w11, [x10, #16]
+    cmp w9, w11
+    b.ne hfs_fail
+    ldrb w9, [sp, #18]
+    ldrb w11, [x10, #18]
+    cmp w9, w11
+    b.ne hfs_fail
+    add sp, sp, #32
+    adr x1, hfs_ok
+    adr x2, hfs_ok_end
+    sub x2, x2, x1
+    bl write_all
+    b psynch_test
+hfs_close_fail:
+    mov x0, x20
+    mov x16, #SYS_close
+    svc #0x80
+hfs_fail:
+    add sp, sp, #32
+    adr x1, hfs_error
+    adr x2, hfs_error_end
+    sub x2, x2, x1
+    bl write_all
+    b tick
+psynch_test:
     /* Exercise the pthread wait queue with a bounded timeout and no mutex.
      * Darwin's psynch_cvwait accepts 8 arguments in x0..x7. A sequence of
      * one increment and a private, stack-backed condition value reaches
@@ -248,9 +365,25 @@ write_more:
     ret
 console_path:
     .asciz "/dev/console"
+root_marker_path:
+    .asciz "/etc/miami-root"
+root_marker_expected:
+    .ascii "MIAMI HFS+ ROOT OK\n"
 hello:
     .ascii "\n*** MIAMI USERSPACE: PID=1 (getpid verified) ***\n"
 hello_end:
+amfi_ok:
+    .ascii "MIAMI AMFI: platform binary and XML entitlements verified\n"
+amfi_ok_end:
+amfi_error:
+    .ascii "MIAMI AMFI ERROR: csops status or entitlements check failed\n"
+amfi_error_end:
+hfs_ok:
+    .ascii "MIAMI HFS+: /etc/miami-root verified\n"
+hfs_ok_end:
+hfs_error:
+    .ascii "MIAMI HFS+ ERROR: /etc/miami-root mismatch\n"
+hfs_error_end:
 heartbeat:
     .ascii "MIAMI PID1: heartbeat\n"
 heartbeat_end:

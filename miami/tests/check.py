@@ -19,6 +19,7 @@ import payload
 import mkadt
 import adt
 from userspace.build import build as build_init, validate as validate_init
+from userspace.mkhfs import build as build_hfs, validate_hfs
 
 DTS = '''/dts-v1/;
 / { #address-cells=<2>; #size-cells=<2>;
@@ -175,6 +176,31 @@ def check(dtc, live_fdt=None):
             pass
         else:
             raise AssertionError('arm64e PID1 accepted')
+        # Exercise HFS+ RAM-root packaging and C handoff validator.
+        hfs_img = temp / 'miami-root.hfs'
+        hfs_info = build_hfs(hfs_img, init)
+        hfs_payload = temp / 'hfs-root.bin'
+        payload.package(kernel, hfs_payload, hfs_img)
+        hfs_rooted = hfs_payload.read_bytes()
+        assert accepts(hfs_rooted)
+        hfs_last = 0x2a8 + (struct.unpack_from('<I', hfs_rooted, 12)[0] - 1) * 32
+        _, hfs_vsize, hfs_fo, hfs_fs = struct.unpack_from('<4Q', hfs_rooted, hfs_last)
+        assert hfs_fs == hfs_vsize == hfs_info['bytes'] == 0x20000
+        for off, fmt, val in [(hfs_fo + 1024, '>H', 0x4244),
+                              (hfs_fo + 1024 + 40, '>I', 8192),
+                              (hfs_fo + 1024 + 44, '>I', 31),
+                              (hfs_fo + hfs_fs - 1024, '>H', 0)]:
+            bad_hfs = bytearray(hfs_rooted)
+            struct.pack_into(fmt, bad_hfs, off, val)
+            assert not accepts(bad_hfs), ('HFS root', off, val)
+        damaged_hfs = bytearray(hfs_img.read_bytes())
+        damaged_hfs[5 * 4096 + 1024] ^= 1
+        try:
+            validate_hfs(damaged_hfs)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('HFS+ embedded launchd corruption accepted')
         ctf_kernel = temp / 'SYNTHETIC-CTF-NOT-XNU.macho'
         ctf_kernel.write_bytes(fixture_ctf())
         ctf_payload = temp / 'ctf.bin'

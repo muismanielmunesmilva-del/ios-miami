@@ -20,10 +20,11 @@ def run(*args):
     subprocess.run([str(x) for x in args], check=True)
 
 
-def check(source, helper, pthread, bearssl):
+def check(source, helper, pthread, bearssl, hfs):
     run(sys.executable, ROOT / 'xnu/configure-helper.py', helper)
     configured = (helper / 'build.sh').read_text()
     assert configured.count('python3 "${MIAMI_PORT_ROOT}/miami/xnu/prepare.py"') == 1
+    assert '--hfs "${WORK_DIR}/hfs"' in configured
     assert configured.index('    get_xnu\n') < configured.index('    python3 "${MIAMI_PORT_ROOT}') < configured.index('    patches\n')
     run('bash', '-n', helper / 'build.sh')
     # Run the actual helper dependency function with all build tools present,
@@ -49,16 +50,28 @@ def check(source, helper, pthread, bearssl):
         subprocess.run(['bash', str(script)], check=True,
                        env={**os.environ, 'PATH': str(tools) + ':/usr/bin:/bin',
                             'DEVELOPER_DIR': str(developer)})
-    run(sys.executable, ROOT / 'xnu/prepare.py', source, '--pthread', pthread, '--bearssl', bearssl)
+    run(sys.executable, ROOT / 'xnu/prepare.py', source, '--pthread', pthread, '--bearssl', bearssl, '--hfs', hfs)
     run(sys.executable, ROOT / 'tests/check-panic.py', source)
     run(sys.executable, ROOT / 'tests/check-aes.py', source)
+    run(sys.executable, ROOT / 'tests/check-md5.py', source)
     run(sys.executable, ROOT / 'tests/check-sha256.py', source)
     run(sys.executable, ROOT / 'tests/check-amfi.py', source)
-    assert 'fifo mockfs fs_compression' in (source / 'config/MASTER.arm64.miami').read_text()
+    assert 'fifo mockfs miami_hfs fs_compression' in (source / 'config/MASTER.arm64.miami').read_text()
+    assert (source / 'bsd/miami_hfs/miami_hfs_iokit.c').exists()
+    assert (source / 'bsd/miami_hfs/miami_hfs_compat.h').exists()
+    assert (source / 'bsd/miami_hfs/TargetConditionals.h').exists()
+    assert '#if CONFIG_PROTECT\n#include <AppleKeyStore/AppleKeyStoreFSServices.h>\n#endif' in (source / 'bsd/miami_hfs/core/hfs_iokit.h').read_text()
+    bsd_init = (source / 'bsd/kern/bsd_init.c').read_text()
+    assert 'miami_amfi_policy_register();' in bsd_init
+    assert 'miami_hfs_register();' in bsd_init
+    assert 'continuing unsealed' in bsd_init
+    assert 'mounting dirty non-journaled root read-write' in (source / 'bsd/miami_hfs/core/hfs_vfsutils.c').read_text()
     nodes = (source / 'bsd/miscfs/mockfs/mockfs_fsnode.c').read_text()
     assert '*fsnpp = kalloc_type(struct mockfs_fsnode,' in nodes
     assert 'kfree_type(struct mockfs_fsnode, fsnp);' in nodes
-    assert 'memdev_info.mi_mdev && memdev_info.mi_phys' in (source / 'bsd/miscfs/mockfs/mockfs_vfsops.c').read_text()
+    mockfs_vfs = (source / 'bsd/miscfs/mockfs/mockfs_vfsops.c').read_text()
+    assert 'memdev_info.mi_mdev && memdev_info.mi_phys' in mockfs_vfs
+    assert 'mockfs_check_macho(rvp)' in mockfs_vfs
     shims = (source / 'bsd/pthread/pthread_shims.c').read_text()
     opaque = (source / 'bsd/sys/pthread_internal.h').read_text()
     assert 'char opaque[56] __attribute__((aligned(8)));' in opaque
@@ -124,5 +137,6 @@ if __name__ == '__main__':
     parser.add_argument('--helper', required=True, type=Path)
     parser.add_argument('--pthread', required=True, type=Path)
     parser.add_argument('--bearssl', required=True, type=Path)
+    parser.add_argument('--hfs', required=True, type=Path)
     args = parser.parse_args()
-    check(args.source.resolve(), args.helper.resolve(), args.pthread.resolve(), args.bearssl.resolve())
+    check(args.source.resolve(), args.helper.resolve(), args.pthread.resolve(), args.bearssl.resolve(), args.hfs.resolve())

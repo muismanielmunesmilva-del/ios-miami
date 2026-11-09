@@ -14,8 +14,15 @@ import mkpayload
 import adt
 sys.path.insert(0, str(PORT / 'miami'))
 from userspace.build import validate as validate_init
+from userspace.mkhfs import validate_hfs
 
 CMDLINE = 'debug=0xc serial=3 cpus=1 keepsyms=1 startup_debug=1 -enable_kprintf_spam -noprogress'
+
+
+def validate_ramdisk(data):
+    if len(data) >= 4 and struct.unpack_from('<I', data)[0] == 0xfeedfacf:
+        return validate_init(data)
+    return validate_hfs(data)
 
 
 def package(kernel, output, ramdisk=None):
@@ -55,7 +62,7 @@ def package(kernel, output, ramdisk=None):
     parsed = mkpayload.parse_macho(data)
     if parsed['entry'] is None or not any(lo <= parsed['entry'] < hi for lo, hi in executable):
         raise ValueError('Kernel entry is not in file-backed executable memory')
-    root_info = validate_init(ramdisk.read_bytes()) if ramdisk else None
+    root_info = validate_ramdisk(ramdisk.read_bytes()) if ramdisk else None
     command_line = CMDLINE + (' rd=md0' if ramdisk else '')
     output.parent.mkdir(parents=True, exist_ok=True)
     tree = output.with_suffix('.adt')

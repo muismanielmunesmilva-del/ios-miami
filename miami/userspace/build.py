@@ -13,6 +13,21 @@ sys.path.insert(0, str(PORT / 'tools'))
 import mkinit
 
 MAX_IMAGE = 65536
+ENTITLEMENTS_XML = (
+    b'<?xml version="1.0" encoding="UTF-8"?>\n'
+    b'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
+    b'"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+    b'<plist version="1.0">\n'
+    b'<dict>\n'
+    b'\t<key>com.motorola.miami.pid1</key>\n'
+    b'\t<true/>\n'
+    b'\t<key>com.apple.private.miami.test-bool</key>\n'
+    b'\t<true/>\n'
+    b'\t<key>com.apple.private.miami.test-string</key>\n'
+    b'\t<string>hello</string>\n'
+    b'</dict>\n'
+    b'</plist>\n'
+)
 
 
 def validate(data):
@@ -65,27 +80,52 @@ def validate(data):
     if entry != text[0] or data[1024:1036] != bytes.fromhex('e903009129ed7c923f010091'):
         raise ValueError('PID1 entry does not align SP before stack access')
     sb = data[sig[0]:]
-    if struct.unpack_from('>5I', sb) != (0xfade0cc0, len(sb), 1, 0, 20):
+    sb_magic, sb_len, sb_count = struct.unpack_from('>3I', sb)
+    if sb_magic != 0xfade0cc0 or sb_len != len(sb) or sb_count not in (1, 2):
         raise ValueError('PID1 signature superblob malformed')
-    cd = sb[20:]
+    cd_type, cd_off = struct.unpack_from('>II', sb, 12)
+    expected_cd_off = 12 + 8 * sb_count
+    if cd_type != 0 or cd_off != expected_cd_off:
+        raise ValueError('PID1 CodeDirectory index invalid')
+    ent_blob = None
+    if sb_count == 2:
+        ent_type, ent_off = struct.unpack_from('>II', sb, 20)
+        if ent_type != 5 or ent_off <= cd_off or ent_off >= len(sb):
+            raise ValueError('PID1 entitlements index invalid')
+        cd = sb[cd_off:ent_off]
+        ent_blob = sb[ent_off:]
+        ent_magic, ent_len = struct.unpack_from('>II', ent_blob)
+        if ent_magic != 0xfade7171 or ent_len != len(ent_blob) or ent_blob[8:] != ENTITLEMENTS_XML:
+            raise ValueError('PID1 XML entitlements blob invalid')
+    else:
+        cd = sb[cd_off:]
     fields = struct.unpack_from('>9I4B', cd)
     magic, length, version, csflags, hash_off, ident_off, specials, slots, limit, hash_size, hash_type, _, page_shift = fields
+    expected_specials = 5 if ent_blob is not None else 0
     if (magic, length, version, csflags, specials, slots, limit, hash_size, hash_type, page_shift) != (
-            0xfade0c02, len(cd), 0x20400, 2, 0, 4, 16384, 32, 2, 12):
+            0xfade0c02, len(cd), 0x20400, 2, expected_specials, 4, 16384, 32, 2, 12):
         raise ValueError('Unsupported PID1 CodeDirectory')
-    if cd[ident_off:hash_off] != b'org.miami.init\0' or hash_off + slots * hash_size != len(cd):
+    if cd[ident_off:hash_off - specials * hash_size] != b'org.miami.init\0' or hash_off + slots * hash_size != len(cd):
         raise ValueError('PID1 identity/hash bounds invalid')
+    if ent_blob is not None:
+        special_region = cd[hash_off - specials * hash_size:hash_off]
+        expected_special = hashlib.sha256(ent_blob).digest() + bytes(32 * 4)
+        if special_region != expected_special:
+            raise ValueError('PID1 entitlements special-slot hash mismatch')
     for page in range(slots):
         if hashlib.sha256(data[page * 4096:(page + 1) * 4096]).digest() != cd[hash_off + page * 32:hash_off + (page + 1) * 32]:
             raise ValueError('PID1 signed page hash mismatch')
     if b'MIAMI USERSPACE: PID=1 (getpid verified)' not in data[:limit]:
         raise ValueError('Wrong PID1 test executable')
+    if b'MIAMI AMFI: platform binary and XML entitlements verified' not in data[:limit]:
+        raise ValueError('Missing AMFI entitlements probe')
     if b'MIAMI PSYNCH: cvwait timed out as expected' not in data[:limit]:
         raise ValueError('Missing pthread wait probe')
     if b'MIAMI THREADS: waiting thread signaled successfully' not in data[:limit]:
         raise ValueError('Missing cross-thread signal probe')
-    return {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
-            'entry': hex(entry), 'identity': 'org.miami.init', 'signature_pages_verified': slots}
+    return {'type': 'mockfs-macho', 'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data),
+            'entry': hex(entry), 'identity': 'org.miami.init',
+            'entitlements_xml': ent_blob is not None, 'signature_pages_verified': slots}
 
 
 def build(output):
@@ -94,7 +134,7 @@ def build(output):
         obj = Path(folder) / 'init.o'
         subprocess.run(['clang', '-target', 'arm64-apple-ios16.0', '-c', str(Path(__file__).with_name('init.S')), '-o', str(obj)], check=True)
         mkinit.IDENT = b'org.miami.init\0'
-        image = mkinit.build(obj.read_bytes())
+        image = mkinit.build(obj.read_bytes(), ENTITLEMENTS_XML)
         result = validate(image)
         output.write_bytes(image)
     return result

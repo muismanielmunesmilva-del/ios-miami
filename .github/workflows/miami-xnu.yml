@@ -58,8 +58,11 @@ jobs:
           git init -q "$RUNNER_TEMP/xnu-check/bearssl"
           git -C "$RUNNER_TEMP/xnu-check/bearssl" fetch -q --depth 1 https://github.com/status-im/BearSSL.git 7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
           git -C "$RUNNER_TEMP/xnu-check/bearssl" checkout -q FETCH_HEAD
+          git init -q "$RUNNER_TEMP/xnu-check/hfs"
+          git -C "$RUNNER_TEMP/xnu-check/hfs" fetch -q --depth 1 https://github.com/apple-oss-distributions/hfs.git 31d5ec238dfab485e78a9a30b8b92d13e8914f03
+          git -C "$RUNNER_TEMP/xnu-check/hfs" checkout -q FETCH_HEAD
       - name: Validate target source edits and early console compilation
-        run: python3 miami/tests/check-source.py --source "$RUNNER_TEMP/xnu-check/xnu" --helper "$RUNNER_TEMP/xnu-check/helper" --pthread "$RUNNER_TEMP/xnu-check/pthread" --bearssl "$RUNNER_TEMP/xnu-check/bearssl"
+        run: python3 miami/tests/check-source.py --source "$RUNNER_TEMP/xnu-check/xnu" --helper "$RUNNER_TEMP/xnu-check/helper" --pthread "$RUNNER_TEMP/xnu-check/pthread" --bearssl "$RUNNER_TEMP/xnu-check/bearssl" --hfs "$RUNNER_TEMP/xnu-check/hfs"
       - name: Check pinned Apple restore manifest provenance
         run: |
           python3 tools/remotezip.py 'https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw' BuildManifest.plist "$RUNNER_TEMP/ios-manifest"
@@ -107,6 +110,10 @@ jobs:
           git -C dxb/bearssl fetch -q --depth 1 https://github.com/status-im/BearSSL.git 7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
           git -C dxb/bearssl checkout -q FETCH_HEAD
           test "$(git -C dxb/bearssl rev-parse HEAD)" = 7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
+          git init -q dxb/hfs
+          git -C dxb/hfs fetch -q --depth 1 https://github.com/apple-oss-distributions/hfs.git 31d5ec238dfab485e78a9a30b8b92d13e8914f03
+          git -C dxb/hfs checkout -q FETCH_HEAD
+          test "$(git -C dxb/hfs rev-parse HEAD)" = 31d5ec238dfab485e78a9a30b8b92d13e8914f03
           python3 miami/xnu/configure-helper.py dxb
           echo "MIAMI_PORT_ROOT=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
       - name: Build single-CPU MIAMI kernel
@@ -133,21 +140,24 @@ jobs:
           for symbol in _pthread_start _pthread_internal_functions __pthread_init __psynch_mutexwait _workq_setup_thread; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/pthread-verification.txt
           done
-          for symbol in _miami_aes_cbc_encrypt _miami_aes_cbc_decrypt _br_aes_ct_cbcenc_init _br_aes_ct_cbcenc_run _br_aes_ct_cbcdec_init _br_aes_ct_cbcdec_run; do
+          for symbol in _miami_aes_cbc_encrypt _miami_aes_cbc_decrypt _br_aes_ct_cbcenc_init _br_aes_ct_cbcenc_run _br_aes_ct_cbcdec_init _br_aes_ct_cbcdec_run _MD5Init _MD5Update _MD5Final _br_md5_init; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/aes-verification.txt
           done
-          for symbol in _mockfs_mountroot _mockfs_fsnode_create _SHA256_Init _ccsha256_ltc_di _miami_amfi_register _miami_amfi_adjust_without_monitor; do
+          for symbol in _mockfs_mountroot _mockfs_fsnode_create _miami_hfs_register _hfs_mountroot _SHA256_Init _ccsha256_ltc_di _miami_amfi_register _miami_amfi_policy_register _miami_entitlements_create _miami_amfi_adjust_without_monitor; do
             grep -E "[[:space:]]${symbol}$" "$RUNNER_TEMP/pthread-symbols.txt" >> out/ram-root-verification.txt
           done
           cp "$KERNEL" out/
           cp dxb/xnu/libkern/crypto/miami_bearssl/LICENSE.txt out/BearSSL-LICENSE.txt
           python3 miami/userspace/build.py out/miami-init.macho > out/init-verification.json
+          python3 miami/userspace/mkhfs.py out/miami-root.hfs --launchd out/miami-init.macho > out/hfs-verification.json
           python3 miami/loader/payload.py "$KERNEL" out/payload.bin --ramdisk out/miami-init.macho
+          python3 miami/loader/payload.py "$KERNEL" out/payload-hfs.bin --ramdisk out/miami-root.hfs
           xcrun clang -O2 -Wall -Wextra -Werror -DMIAMI_PAYLOAD_ONLY miami/loader/verify-input.c miami/loader/plan.c -o "$RUNNER_TEMP/check-payload"
           "$RUNNER_TEMP/check-payload" out/payload.bin
+          "$RUNNER_TEMP/check-payload" out/payload-hfs.bin
           cp toolchain.txt dxb/miami-source.json out/
           git rev-parse HEAD > out/port-commit.txt
-          (cd out && shasum -a 256 kernel.development.miami payload.bin payload.adt miami-init.macho > SHA256SUMS)
+          (cd out && shasum -a 256 kernel.development.miami payload.bin payload.adt payload-hfs.bin payload-hfs.adt miami-init.macho miami-root.hfs > SHA256SUMS)
       - name: Preserve source and generated headers after a build failure
         if: failure()
         run: |

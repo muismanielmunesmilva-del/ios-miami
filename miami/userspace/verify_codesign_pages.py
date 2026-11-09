@@ -33,6 +33,7 @@ def inspect(data):
     if magic != 0xfade0cc0 or total > length or total < 12 or entries > 100 or 12 + entries * 8 > total:
         raise ValueError('Invalid signature superblob')
     directories = []
+    blobs = {}
     for index in range(entries):
         slot, rel = struct.unpack_from('>II', data, start + 12 + index * 8)
         if rel > total - 8:
@@ -40,6 +41,10 @@ def inspect(data):
         kind, size = struct.unpack_from('>II', data, start + rel)
         if size < 8 or size > total - rel:
             raise ValueError('Invalid signature blob size')
+        blobs[slot] = memoryview(data)[start + rel:start + rel + size]
+    for index in range(entries):
+        slot, rel = struct.unpack_from('>II', data, start + 12 + index * 8)
+        kind, size = struct.unpack_from('>II', data, start + rel)
         if kind != 0xfade0c02:
             continue
         if size < 40:
@@ -53,13 +58,21 @@ def inspect(data):
                 hashoff < special * hashsize or hashoff + slots * hashsize > size or
                 hashsize > hashlib.new(algorithm).digest_size):
             raise ValueError('Unsupported or malformed CodeDirectory')
+        for sp in range(1, special + 1):
+            expected = bytes(cd[hashoff - sp * hashsize:hashoff - (sp - 1) * hashsize])
+            if sp in blobs:
+                actual = hashlib.new(algorithm, blobs[sp]).digest()[:hashsize]
+                if actual != expected:
+                    raise ValueError(f'CodeDirectory special slot -{sp} hash mismatch')
+            elif any(expected):
+                raise ValueError(f'Missing blob for non-zero special slot -{sp}')
         for page in range(slots):
             chunk = data[page * (1 << shift):min(limit, (page + 1) * (1 << shift))]
             actual = hashlib.new(algorithm, chunk).digest()[:hashsize]
             if actual != cd[hashoff + page * hashsize:hashoff + (page + 1) * hashsize]:
                 raise ValueError('CodeDirectory page hash mismatch')
         directories.append({'slot':slot, 'hash_type':hashtype, 'page_bytes':1 << shift,
-                            'pages_verified':slots, 'code_limit':limit})
+                            'pages_verified':slots, 'special_slots_verified':special, 'code_limit':limit})
     if not directories:
         raise ValueError('No supported CodeDirectory')
     return {'sha256':hashlib.sha256(data).hexdigest(), 'code_directories':directories,
