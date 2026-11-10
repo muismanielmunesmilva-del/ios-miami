@@ -14,7 +14,13 @@
   * Integrated `BearSSL` (`7bea48e`) constant-time legacy AES-CBC (`g_crypto_funcs` fallback) and MD5 (`corecrypto_md5.c`), plus built-in XNU `ccsha256_ltc_di` SHA-256 wrapper.
   * Integrated `mockfs`, `devfs`, and Apple OSS HFS+ (`hfs-627.100.6`, commit `31d5ec238d`) RAMDisk root (`rd=md0`).
   * Integrated built-in AMFI interface (`miami_amfi.c` + `SweetEntitlements.cpp`) with `OSDictionary` XML entitlement parsing, rootfs `CS_PLATFORM_BINARY | CS_SIGNED` MAC policy, dual XML+DER entitlement admission, and fail-closed validation on malformed XML or DER-only blobs.
-* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0016`):**
+* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0017`):**
+  * Actions Run: [`42839628747`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42839628747) (kernel CI commit `b1e3dbe`, branch `main` / `miami-ci`).
+  * `boot.img` SHA-256: `d910331fe0dc0e64aaed36743887c09b213a87a635f56a63c684579c7fd71119` (`100,663,296` bytes).
+  * `kernel.development.miami` SHA-256: `785d0da4e8db374026dc7aa0a7905dbe0fc15dc1ec0fa7a9cfa6b0ff12ff7f8a` (`16,611,696` bytes).
+  * Features integrated in `0017`: Polled SPMI hardware keys driver (`bsd/dev/miami_keys.c` at SPMI core `0x01c40000`, obsrvr `0x03e00000`, cnfg `0x01c0a000`), PM6125 PON (Power + VolDown), PMR735A GPIO1 (VolUp), and active HID event generation (`MiamiHIDButtons` + `miamihidtest=5`).
+  * Hardware result (`0017`): **PASS (User Verified on Physical Motorola Edge 30 Neo `XT2245-1`)** — temporary `fastboot boot` accepted; user confirmed physical display of `MIAMI HID: key 0x...` event logs with hexadecimal usages on-screen, active verbose console, and rock-solid stability without panic.
+* **Previous Verified Physical Hardware Execution (`MIAMI_XNU_0016`):**
   * Actions Run: [`42831584898`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42831584898) (kernel CI commit `349afb2`, branch `main` / `miami-ci`).
   * `boot.img` SHA-256: `74ba3cdf994a8e4484a8523da70022ee21427941c9c38dfa468f8bb7de55dcd8` (`100,663,296` bytes).
   * `kernel.development.miami` SHA-256: `e432c695a0bc0eec73b18dfdb1e33dff659eb8f972b93086eb2a344937fa648c` (`16,611,360` bytes).

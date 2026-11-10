@@ -47,3 +47,13 @@
   - Userspace PID 1 (`miami-init`) invoked and verified (`getpid` verified).
   - AMFI XML entitlements validated.
   - Stable continuous execution with zero panics.
+
+## Milestone MIAMI_XNU_0017 - Hardware Keys & Active HID Event Generation
+- **Status:** PASS (Physical Hardware Verified)
+- **Artifacts:** `outputs/miami-xnu-boot-0017/boot.img` (SHA-256 `d910331fe0dc0e64aaed36743887c09b213a87a635f56a63c684579c7fd71119`)
+- **Kernel:** Single-CPU MIAMI XNU with integrated SPMI keys driver (`miami_keys.c`), PON / GPIO PMIC observers, and active `MiamiHIDButtons` event dispatcher.
+- **Physical Verification:**
+  - Booted on physical Motorola Edge 30 Neo (`0083244092`).
+  - Active AMOLED continuous splash mapping at `0x85200000`.
+  - User confirmed on-screen display of `MIAMI HID: key 0x...` events dispatched live to the XNU event subsystem.
+  - Rock-solid continuous execution with zero panics or reboots.
