@@ -64,6 +64,18 @@ static void miami_usb_gadget_start(vm_offset_t dwc);
 #define DEPCMD_DEPSTARTCFG      9
 #define DEPCMD_CMDACT           (1u << 10)
 
+/*
+ * Qualcomm wrapper registers ("QSCRATCH", core base + 0xf8800).
+ * On SM6375: core_base is 0x04e00000, so QSCRATCH is at 0x04ef8800.
+ * The controller only connects (pull-up on D+) while it sees a valid VBUS session.
+ */
+#define QSCRATCH_PA             0x04ef8800u
+#define QSCRATCH_HS_PHY_CTRL    0x10
+#define   UTMI_OTG_VBUS_VALID   (1u << 20)
+#define   SW_SESSVLD_SEL        (1u << 28)
+#define QSCRATCH_SS_PHY_CTRL    0x30
+#define   LANE0_PWR_PRESENT     (1u << 24)
+
 #define TRB_HWO         (1u << 0)
 #define TRB_LST         (1u << 1)
 #define TRB_ISP_IMI     (1u << 10)
@@ -396,6 +408,18 @@ miami_usb_gadget_start(vm_offset_t dwc)
 	}
 	dwc_wr(DALEPENA, 0x3);
 	ud_start_setup();
+
+	vm_offset_t qs = ml_io_map(QSCRATCH_PA, 0x100);
+	if (qs != 0) {
+		uint32_t hs = usb_rd(qs, QSCRATCH_HS_PHY_CTRL), ss = usb_rd(qs, QSCRATCH_SS_PHY_CTRL);
+		printf("MIAMI USB: QSCRATCH HS_PHY_CTRL 0x%08x SS_PHY_CTRL 0x%08x GENERAL_CFG 0x%08x\n",
+		    hs, ss, usb_rd(qs, 0x08));
+		*(volatile uint32_t *)(qs + QSCRATCH_HS_PHY_CTRL) = hs | UTMI_OTG_VBUS_VALID | SW_SESSVLD_SEL;
+		*(volatile uint32_t *)(qs + QSCRATCH_SS_PHY_CTRL) = ss | LANE0_PWR_PRESENT;
+		__asm__ volatile ("dsb sy" ::: "memory");
+		printf("MIAMI USB: VBUS override on: HS_PHY_CTRL 0x%08x SS_PHY_CTRL 0x%08x\n",
+		    usb_rd(qs, QSCRATCH_HS_PHY_CTRL), usb_rd(qs, QSCRATCH_SS_PHY_CTRL));
+	}
 
 	dwc_wr(DCTL, dwc_rd(DCTL) | DCTL_RUN_STOP);
 	for (i = 0; i < 500 && (dwc_rd(DSTS) & DSTS_DEVCTRLHLT); i++) {
