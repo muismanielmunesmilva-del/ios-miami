@@ -102,4 +102,17 @@
     - `MIAMI USB: event 0x0000c040` (EP0 XferComplete)
   - Zero crashes, zero kernel panics; continuous verbose console and heartbeats stable.
 
+## Milestone MIAMI_XNU_0021 - Microsoft OS Descriptors 1.0 & WinUSB Compatibility
+- **Status:** PASS (Physical Hardware Verified)
+- **Artifacts:** `outputs/miami-xnu-boot-0021/boot.img` (SHA-256 `c2248e0479a7aed9bbbe7be8855e971b6ec4614de3eaf573f6ee9a1c0e8bce96`)
+- **Kernel:** Single-CPU MIAMI XNU with integrated Microsoft OS 1.0 String Descriptor (`0xEE`, `MSFT100`), Extended Compat ID (`WINUSB\0\0`), and Extended Properties feature descriptors (DeviceInterfaceGUID `{1D4B2365-4749-48EA-B33A-73B3124001EE}`).
+- **Physical Verification:**
+  - Booted on physical Motorola Edge 30 Neo (`0083244092`).
+  - Active AMOLED continuous splash mapping at `0x85200000`.
+  - Device physically attached and present (`Present : True`).
+  - Host Windows PC queried Microsoft OS String Descriptor 0xEE and vendor feature descriptors:
+    - User confirmed live on-screen logs for string descriptor 0xEE (`setup 80 06 03ee...`) and vendor requests (`setup c0 01...`).
+  - Rock-solid kernel execution with zero crashes or panics; heartbeats active.
+
+
 
