@@ -60,11 +60,17 @@ def build(seed=None, include_ufs=False):
     gic = node('gic', [('compatible', cstr('arm,gic-v3')), ('interrupt-controller', b''),
                ('virtual-timer-intid', u32(19)),
                ('reg', u64(0x0f200000 - SOC_BASE, 0x10000, 0x0f240000 - SOC_BASE, 0x100000))])
+    disp = node('disp0', [
+        ('device_type', cstr('display-subsystem')),
+        ('compatible', cstr('miami,display')),
+        ('canvas-width', u32(1080)),
+        ('canvas-height', u32(2400)),
+    ])
     children = [chosen, node('defaults'), node('cpus', [('#address-cells', u32(1)), ('#size-cells', u32(0))], [cpu]),
                  node('arm-io', [('device_type', cstr('miami-io')),
                       ('compatible', cstr('miami-io') + cstr('arm-io')),
                       ('#address-cells', u32(2)), ('#size-cells', u32(2)),
-                      ('ranges', u64(0, SOC_BASE, 0x100000000 - SOC_BASE))], [gic]),
+                      ('ranges', u64(0, SOC_BASE, 0x100000000 - SOC_BASE))], [gic, disp]),
                  node('miami-fbcon', [('reg', u64(0, 0)), ('width', u32(1080)),
                       ('height', u32(2400)), ('stride', u32(0))]),
                  node('pram', [('reg', u64(RAM_BASE + RAM_SIZE, PANIC_SIZE))])]
