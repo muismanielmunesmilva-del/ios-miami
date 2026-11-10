@@ -14,7 +14,13 @@
   * Integrated `BearSSL` (`7bea48e`) constant-time legacy AES-CBC (`g_crypto_funcs` fallback) and MD5 (`corecrypto_md5.c`), plus built-in XNU `ccsha256_ltc_di` SHA-256 wrapper.
   * Integrated `mockfs`, `devfs`, and Apple OSS HFS+ (`hfs-627.100.6`, commit `31d5ec238d`) RAMDisk root (`rd=md0`).
   * Integrated built-in AMFI interface (`miami_amfi.c` + `SweetEntitlements.cpp`) with `OSDictionary` XML entitlement parsing, rootfs `CS_PLATFORM_BINARY | CS_SIGNED` MAC policy, dual XML+DER entitlement admission, and fail-closed validation on malformed XML or DER-only blobs.
-* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0019`):**
+* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0020`):**
+  * Actions Run: [`42871865902`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42871865902) (kernel CI commit `f118662`, branch `main` / `miami-ci`).
+  * `boot.img` SHA-256: `5685dae2b83de4836fa83b820453393dfeb66a99e06cafab00594395fc9a8375` (`100,663,296` bytes).
+  * `kernel.development.miami` SHA-256: `ff9ceeaef8449e755259e843c98d6c78a0d4c845b5c92c81729b1ea2904534ef` (`16,628,544` bytes).
+  * Features integrated in `0020`: USB CDC-ECM Ethernet gadget descriptors (`USB\Class_02&SubClass_06&Prot_00`), multi-endpoint DWC3 configuration (EP0 control, EP1 bulk IN/OUT, EP2 interrupt IN), deferred `ue0` network stack initialization (`192.168.7.2/24`).
+  * Hardware result (`0020`): **PASS (User Verified on Physical Motorola Edge 30 Neo `XT2245-1`)** — temporary `fastboot boot` accepted; host Windows PC enumerated CDC-ECM device (`Miami iOS 16 (XNU)`); user confirmed live control packet serving on screen (`setup 80 06 0300 0000 len 255`, `event 0x0000c040`); zero panics, continuous verbose console and heartbeats stable.
+* **Previous Verified Physical Hardware Execution (`MIAMI_XNU_0019`):**
   * Actions Run: [`42860272847`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42860272847) (kernel CI commit `e487efd`, branch `main` / `miami-ci`).
   * `boot.img` SHA-256: `f211214c4e8605315a936a0d37b998c9b39872e9da54c1e20c72fc8136cbb179` (`100,663,296` bytes).
   * `kernel.development.miami` SHA-256: `6d0d0640f01b2e4656cf3e182529154d1567bbc7e5ecb7de5bc40272c8aa4f06` (`16,628,336` bytes).

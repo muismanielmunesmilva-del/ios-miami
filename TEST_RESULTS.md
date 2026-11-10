@@ -84,3 +84,22 @@
   - Control transfers (EP0 `GET_DESCRIPTOR` for Device and Strings) served successfully by XNU kernel.
   - Continuous PID1 heartbeats steady in verbose console.
 
+## Milestone MIAMI_XNU_0020 - USB CDC-ECM Ethernet Gadget Functionality & Multi-Endpoint DWC3
+- **Status:** PASS (Physical Hardware Verified)
+- **Artifacts:** `outputs/miami-xnu-boot-0020/boot.img` (SHA-256 `5685dae2b83de4836fa83b820453393dfeb66a99e06cafab00594395fc9a8375`)
+- **Kernel:** Single-CPU MIAMI XNU with integrated USB CDC-ECM Ethernet gadget descriptors, multi-endpoint DWC3 configuration (EP0 control, EP1 bulk IN/OUT, EP2 interrupt IN), and deferred `ue0` network stack initialization (`192.168.7.2/24`).
+- **Physical Verification:**
+  - Booted on physical Motorola Edge 30 Neo (`0083244092`).
+  - Active AMOLED continuous splash mapping at `0x85200000`.
+  - QSCRATCH VBUS session valid override engaged.
+  - Host Windows PC detected and enumerated CDC-ECM device:
+    - FriendlyName: `Miami iOS 16 (XNU)`
+    - Compatible ID: `USB\Class_02&SubClass_06&Prot_00` (CDC ECM Ethernet)
+    - Hardware ID: `USB\VID_1209&PID_0001&REV_0100`
+    - Status: `Present : True`
+  - User confirmed live control packets and transfer completions on-screen:
+    - `MIAMI USB: setup 80 06 0300 0000 len 255`
+    - `MIAMI USB: event 0x0000c040` (EP0 XferComplete)
+  - Zero crashes, zero kernel panics; continuous verbose console and heartbeats stable.
+
+
