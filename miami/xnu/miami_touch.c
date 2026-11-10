@@ -182,6 +182,7 @@ touch_gpio_get(unsigned pin)
 static bool
 touch_clocks_init(void)
 {
+	printf("MIAMI TOUCH: enabling GCC clocks...\n");
 	/*
 	 * Vote for QUPv3 wrapper 0 core, M-AHB and S-AHB in GCC.
 	 * BIT(22): gcc_qupv3_wrap0_s0_clk
@@ -198,12 +199,14 @@ touch_clocks_init(void)
 	printf("MIAMI TOUCH: gcc vote=%#x rcg_cmd=%#x rcg_cfg=%#x\n",
 	    touch_rd(touch_gcc, TOUCH_GCC_VOTE), rcg_cmd, rcg_cfg);
 
+	delay(1000);
 	return true;
 }
 
 static void
 touch_pins_init(void)
 {
+	printf("MIAMI TOUCH: configuring TLMM pins (GPIO 0-3, 21, 22)...\n");
 	/* SPI pins: GPIO 0 (MOSI), 1 (MISO), 2 (CS), 3 (CLK) -> mux 1 (qup00) */
 	touch_gpio_cfg(PIN_MOSI, 1, 0, 3, false);
 	touch_gpio_cfg(PIN_MISO, 1, 0, 3, false);
@@ -266,6 +269,7 @@ geni_drain(uint8_t *rx, uint32_t length, uint32_t *received)
 static bool
 geni_spi_init(void)
 {
+	printf("MIAMI TOUCH: checking GENI SE0 registers at %p...\n", (void *)touch_se);
 	uint32_t fw_rev = touch_rd(touch_se, GENI_FW_REVISION_RO);
 	uint32_t if_dis = touch_rd(touch_se, GENI_IF_DISABLE_RO);
 	printf("MIAMI TOUCH: GENI fw_rev=%#x if_dis=%#x\n", fw_rev, if_dis);
@@ -550,6 +554,7 @@ miami_touch_init(void)
 		return;
 	}
 
+	printf("MIAMI TOUCH: initializing MMIO mapping...\n");
 	touch_se = ml_io_map(TOUCH_SE_PA, 0x4000);
 	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x60000);
 	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x30000);
@@ -559,6 +564,8 @@ miami_touch_init(void)
 		    (void *)touch_se, (void *)touch_gcc, (void *)touch_tlmm);
 		return;
 	}
+	printf("MIAMI TOUCH: MMIO mapped (se=%p gcc=%p tlmm=%p)\n",
+	    (void *)touch_se, (void *)touch_gcc, (void *)touch_tlmm);
 
 	touch_clocks_init();
 	touch_pins_init();
