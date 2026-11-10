@@ -551,8 +551,8 @@ miami_touch_init(void)
 	}
 
 	touch_se = ml_io_map(TOUCH_SE_PA, 0x4000);
-	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x1f0000);
-	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x800000);
+	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x60000);
+	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x30000);
 
 	if (!touch_se || !touch_gcc || !touch_tlmm) {
 		printf("MIAMI TOUCH: MMIO mapping failed (se=%p gcc=%p tlmm=%p)\n",
