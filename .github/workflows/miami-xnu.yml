@@ -71,11 +71,12 @@ jobs:
         run: python3 miami/tests/check-codesign-pages.py
       - name: Validate Miami UFS driver invariants
         run: python3 miami/tests/check-ufs.py
-      - name: Validate Miami Display, HID, and Keys subsystems
+      - name: Validate Miami Display, HID, Keys, and USB subsystems
         run: |
           python3 miami/tests/check-display.py
           python3 miami/tests/check-hid.py
           python3 miami/tests/check-keys.py
+          python3 miami/tests/check-usb.py
 
   kernel:
     needs: validate
