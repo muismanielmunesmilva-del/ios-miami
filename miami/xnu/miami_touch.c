@@ -103,7 +103,10 @@ void miami_touch_init(void);
 #define M_CMD_CANCEL         (1u << 4)
 #define M_CMD_ABORT          (1u << 5)
 #define M_ERRORS             ((1u << 1) | (1u << 2) | (1u << 3) | (1u << 24) | (1u << 25) | (1u << 28) | (1u << 29))
-#define SPI_FULL_DUPLEX      (3u << 27)
+#define SPI_TX_ONLY          1u
+#define SPI_RX_ONLY          2u
+#define SPI_TX_RX            7u
+#define SPI_FULL_DUPLEX      (SPI_TX_RX << 27)
 
 /* Goodix Berlin protocol registers */
 #define GOODIX_FW_VERSION    0x10014u
@@ -170,12 +173,14 @@ touch_gpio_cfg(unsigned pin, unsigned mux, unsigned pull, unsigned drive, bool o
 static void
 touch_gpio_set(unsigned pin, bool high)
 {
+	if (!touch_tlmm) return;
 	touch_wr(touch_tlmm, TLMM_GPIO_IO(pin), high ? 2u : 0u);
 }
 
 static bool
 touch_gpio_get(unsigned pin)
 {
+	if (!touch_tlmm) return false;
 	return (touch_rd(touch_tlmm, TLMM_GPIO_IO(pin)) & 1u) != 0;
 }
 
@@ -446,13 +451,18 @@ goodix_probe(void)
 {
 	uint8_t version[28];
 	static uint8_t info[GOODIX_MAX_READ];
+	int rst = 0;
 
-	/* Reset chip */
-	touch_gpio_set(PIN_RESET, false);
-	delay(2000);
-	touch_gpio_set(PIN_RESET, true);
-	touch_wait(100);
+	(void)PE_parse_boot_argn("touchreset", &rst, sizeof(rst));
+	if (rst) {
+		printf("MIAMI TOUCH: resetting Goodix chip via GPIO 21...\n");
+		touch_gpio_set(PIN_RESET, false);
+		delay(2000);
+		touch_gpio_set(PIN_RESET, true);
+		touch_wait(100);
+	}
 
+	printf("MIAMI TOUCH: probing Goodix FW version via SPI0...\n");
 	if (!goodix_read(GOODIX_FW_VERSION, version, sizeof(version))) {
 		printf("MIAMI TOUCH: read FW_VERSION failed\n");
 		return false;
@@ -564,11 +574,16 @@ miami_touch_init(void)
 	printf("MIAMI TOUCH: initializing MMIO mapping...\n");
 	touch_se = ml_io_map(TOUCH_SE_PA, 0x4000);
 	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x60000);
-	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x30000);
+	touch_tlmm = 0;
+	int cfg_tlmm = 0;
+	(void)PE_parse_boot_argn("touchtlmm", &cfg_tlmm, sizeof(cfg_tlmm));
+	if (cfg_tlmm) {
+		touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x30000);
+	}
 
-	if (!touch_se || !touch_gcc || !touch_tlmm) {
-		printf("MIAMI TOUCH: MMIO mapping failed (se=%p gcc=%p tlmm=%p)\n",
-		    (void *)touch_se, (void *)touch_gcc, (void *)touch_tlmm);
+	if (!touch_se || !touch_gcc) {
+		printf("MIAMI TOUCH: MMIO mapping failed (se=%p gcc=%p)\n",
+		    (void *)touch_se, (void *)touch_gcc);
 		return;
 	}
 	printf("MIAMI TOUCH: MMIO mapped (se=%p gcc=%p tlmm=%p)\n",
