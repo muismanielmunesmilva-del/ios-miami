@@ -14,7 +14,13 @@
   * Integrated `BearSSL` (`7bea48e`) constant-time legacy AES-CBC (`g_crypto_funcs` fallback) and MD5 (`corecrypto_md5.c`), plus built-in XNU `ccsha256_ltc_di` SHA-256 wrapper.
   * Integrated `mockfs`, `devfs`, and Apple OSS HFS+ (`hfs-627.100.6`, commit `31d5ec238d`) RAMDisk root (`rd=md0`).
   * Integrated built-in AMFI interface (`miami_amfi.c` + `SweetEntitlements.cpp`) with `OSDictionary` XML entitlement parsing, rootfs `CS_PLATFORM_BINARY | CS_SIGNED` MAC policy, dual XML+DER entitlement admission, and fail-closed validation on malformed XML or DER-only blobs.
-* **Latest Verified Host Delivery (`MIAMI_XNU_0013`):**
+* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0014`):**
+  * Actions Run: [`42725998034`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42725998034) (kernel CI commit `320da2742af46c883be503fce7d44830f79e419c`, branch `miami-ci-public` / `main`).
+  * `boot.img` SHA-256: `c8de4ddf0fc9e9324b053384e629f20277e3450817ba6e5968fdf6e3011508eb` (`100,663,296` bytes).
+  * `kernel.development.miami` SHA-256: `293970176d1250e485f59865f33c509c3671f53dc44b368a8d53c4cc8b465673` (`16,474,136` bytes).
+  * Features integrated in `0014`: Qualcomm UFSHCI 2.1 SCSI read-only storage driver (`bsd/dev/miami_ufs.c` at MMIO `0x04804000`), `/miami-ufs` ADT node, polled SCSI Read(10), GPT partition scanner (`ufsroot=userdata`), devfs nodes `ufsroot0` and `rufsroot0`, and strict read-only partition protection (`EROFS`).
+  * Hardware result (`0014`): **PASS (User Verified on Physical Motorola Edge 30 Neo `XT2245-1`)** — temporary `fastboot boot` accepted; user confirmed physical display of threads, HFS+, Sandbox, psynch, AMFI platform binary / entitlements, and rapid continuous heartbeats. Zero partition writes issued.
+* **Previous Verified Host Delivery (`MIAMI_XNU_0013`):**
   * Actions Run: [`42709183824`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42709183824) (kernel CI commit `9b978f02931a7b45f44daaa2cffdb01fc6ad55c5`, branch `miami-ci-public` / `main`).
   * `boot.img` SHA-256: `54640ba0bb21748312dbf409741490ce6d99230d0c3c3f0c1ac15fcf1386852d` (`100,663,296` bytes).
   * `kernel.development.miami` SHA-256: `166c94e58cfa356bffb6512d8698764630bb9e92e5ea9f13387cd89da4de660e` (`16,472,952` bytes, `LC_UUID`: `4D194B4E-5205-325A-98C0-E5E3DDA5BA90`).
