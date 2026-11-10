@@ -14,7 +14,13 @@
   * Integrated `BearSSL` (`7bea48e`) constant-time legacy AES-CBC (`g_crypto_funcs` fallback) and MD5 (`corecrypto_md5.c`), plus built-in XNU `ccsha256_ltc_di` SHA-256 wrapper.
   * Integrated `mockfs`, `devfs`, and Apple OSS HFS+ (`hfs-627.100.6`, commit `31d5ec238d`) RAMDisk root (`rd=md0`).
   * Integrated built-in AMFI interface (`miami_amfi.c` + `SweetEntitlements.cpp`) with `OSDictionary` XML entitlement parsing, rootfs `CS_PLATFORM_BINARY | CS_SIGNED` MAC policy, dual XML+DER entitlement admission, and fail-closed validation on malformed XML or DER-only blobs.
-* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0014`):**
+* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0015`):**
+  * Actions Run: [`42817993843`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42817993843) (kernel CI commit `312d6bb`, branch `main` / `miami-ci`).
+  * `boot.img` SHA-256: `54daf3b9a56699a7f1fd2455eb71f8367f186eca796c66daaf54e5262f45f363` (`100,663,296` bytes).
+  * `kernel.development.miami` SHA-256: `b88c93254c0f3cc642ff3634a02b5d156eabcd7e665d6f5fd0ac0109828994a0` (`16,531,480` bytes).
+  * Features integrated in `0015`: Native display pipeline (`IOCoreSurfaceRoot` + `AppleCLCD : public IOMobileFramebuffer` on `/arm-io/disp0`), 1080x2400 AMOLED continuous splash mapping at `0x85200000`, 60 Hz VSync timer (`IOTimerEventSource`), user client interfaces (`IOSurfaceRootUserClient`, `IOMobileFramebufferUserClient`), and `/arm-io` nub publisher hook in `SweetPlatformExpert::processTopLevel`.
+  * Hardware result (`0015`): **PASS (User Verified on Physical Motorola Edge 30 Neo `XT2245-1`)** — temporary `fastboot boot` accepted; user confirmed physical on-screen boot with continuous heartbeats and zero crashes. Display drivers, ADT nodes, and kernel structures verified intact.
+* **Previous Verified Physical Hardware Execution (`MIAMI_XNU_0014`):**
   * Actions Run: [`42725998034`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42725998034) (kernel CI commit `320da2742af46c883be503fce7d44830f79e419c`, branch `miami-ci-public` / `main`).
   * `boot.img` SHA-256: `c8de4ddf0fc9e9324b053384e629f20277e3450817ba6e5968fdf6e3011508eb` (`100,663,296` bytes).
   * `kernel.development.miami` SHA-256: `293970176d1250e485f59865f33c509c3671f53dc44b368a8d53c4cc8b465673` (`16,474,136` bytes).
