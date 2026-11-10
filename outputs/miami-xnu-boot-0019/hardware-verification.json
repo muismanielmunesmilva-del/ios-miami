@@ -1,0 +1,23 @@
+{
+  "milestone": "MIAMI_XNU_0019",
+  "device": "Motorola Edge 30 Neo (XT2245-1 / miami)",
+  "serial": "0083244092",
+  "status": "PASS",
+  "date": "2026-11-10T09:22:00-08:00",
+  "verification_method": "physical_boot_and_host_usb_enumeration",
+  "evidence": {
+    "host_os": "Windows 10/11",
+    "pnp_device_name": "Miami iOS 16 (XNU)",
+    "pnp_instance_id": "USB\\VID_1209&PID_0001\\0001",
+    "hardware_id": "USB\\VID_1209&PID_0001&REV_0100",
+    "pnp_present": true,
+    "ep0_control_enumeration": true,
+    "qscratch_vbus_override": true,
+    "cmdline_flag": "miamiusb=2"
+  },
+  "hashes": {
+    "boot_img_sha256": "f211214c4e8605315a936a0d37b998c9b39872e9da54c1e20c72fc8136cbb179",
+    "payload_bin_sha256": "3a80adba51e37da27950ebda430974ce9840799661a0e8159aa3ab22bf0b9b74",
+    "kernel_sha256": "6d0d0640f01b2e4656cf3e182529154d1567bbc7e5ecb7de5bc40272c8aa4f06"
+  }
+}

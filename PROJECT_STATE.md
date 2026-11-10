@@ -1,6 +1,6 @@
 # MIAMI Project State — Experimental iOS 16 Port for Motorola Edge 30 Neo (`XT2245-1`)
 
-**Last Updated:** 2026-11-09
+**Last Updated:** 2026-11-10
 **Authoritative Repository:** `C:\Users\twix\Documents\Codex\2026-11-05\ol\work\ios-miami`
 **Branch:** `miami-bringup`
 **Public CI Repository:** `https://github.com/muismanielmunesmilva-del/ios-miami`
@@ -14,7 +14,13 @@
   * Integrated `BearSSL` (`7bea48e`) constant-time legacy AES-CBC (`g_crypto_funcs` fallback) and MD5 (`corecrypto_md5.c`), plus built-in XNU `ccsha256_ltc_di` SHA-256 wrapper.
   * Integrated `mockfs`, `devfs`, and Apple OSS HFS+ (`hfs-627.100.6`, commit `31d5ec238d`) RAMDisk root (`rd=md0`).
   * Integrated built-in AMFI interface (`miami_amfi.c` + `SweetEntitlements.cpp`) with `OSDictionary` XML entitlement parsing, rootfs `CS_PLATFORM_BINARY | CS_SIGNED` MAC policy, dual XML+DER entitlement admission, and fail-closed validation on malformed XML or DER-only blobs.
-* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0018`):**
+* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0019`):**
+  * Actions Run: [`42860272847`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42860272847) (kernel CI commit `e487efd`, branch `main` / `miami-ci`).
+  * `boot.img` SHA-256: `f211214c4e8605315a936a0d37b998c9b39872e9da54c1e20c72fc8136cbb179` (`100,663,296` bytes).
+  * `kernel.development.miami` SHA-256: `6d0d0640f01b2e4656cf3e182529154d1567bbc7e5ecb7de5bc40272c8aa4f06` (`16,628,336` bytes).
+  * Features integrated in `0019`: Synopsys DWC3 USB Gadget EP0 control transfer enumeration + Qualcomm QSCRATCH VBUS override at `0x04ef8800` (`QSCRATCH_HS_PHY_CTRL` / `QSCRATCH_SS_PHY_CTRL`).
+  * Hardware result (`0019`): **PASS (User Verified on Physical Motorola Edge 30 Neo `XT2245-1`)** — temporary `fastboot boot` accepted; VBUS override engaged, D+ pulled up, host Windows PC successfully enumerated USB device `Miami iOS 16 (XNU)` (VID `0x1209`, PID `0x0001`), standard EP0 `GET_DESCRIPTOR` served without panic.
+* **Previous Verified Physical Hardware Execution (`MIAMI_XNU_0018`):**
   * Actions Run: [`42847601129`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42847601129) (kernel CI commit `d4e8a01`, branch `main` / `miami-ci`).
   * `boot.img` SHA-256: `7e999bc4e932c7e7c05847362811e008f93616c56034c29afd0350102089bce6` (`100,663,296` bytes).
   * `kernel.development.miami` SHA-256: `18f780517855b7c89694ce22896f60ea0b005e8346e9df53cae9ef8b08eb3e28` (`16,611,736` bytes).

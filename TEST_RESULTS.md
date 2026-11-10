@@ -67,3 +67,20 @@
   - Active AMOLED continuous splash mapping at `0x85200000`.
   - User confirmed on-screen execution of `MIAMI USB:` probe without memory bus faults, hang, or panic.
   - Continuous PID1 heartbeats steady in verbose console.
+
+## Milestone MIAMI_XNU_0019 - USB DWC3 Gadget EP0 Control Transfer Enumeration & QSCRATCH VBUS Override
+- **Status:** PASS (Physical Hardware Verified)
+- **Artifacts:** `outputs/miami-xnu-boot-0019/boot.img` (SHA-256 `f211214c4e8605315a936a0d37b998c9b39872e9da54c1e20c72fc8136cbb179`)
+- **Kernel:** Single-CPU MIAMI XNU with integrated Synopsys DWC3 USB gadget EP0 state machine and Qualcomm QSCRATCH VBUS override at `0x04ef8800`.
+- **Physical Verification:**
+  - Booted on physical Motorola Edge 30 Neo (`0083244092`).
+  - Active AMOLED continuous splash mapping at `0x85200000`.
+  - QSCRATCH VBUS session valid override engaged (`HS_PHY_CTRL` / `SS_PHY_CTRL`), pulling up D+.
+  - Host Windows PC enumerated USB Gadget device:
+    - FriendlyName: `Miami iOS 16 (XNU)`
+    - Hardware ID: `USB\VID_1209&PID_0001&REV_0100`
+    - Instance ID: `USB\VID_1209&PID_0001\0001`
+    - Status: `Present : True`
+  - Control transfers (EP0 `GET_DESCRIPTOR` for Device and Strings) served successfully by XNU kernel.
+  - Continuous PID1 heartbeats steady in verbose console.
+
