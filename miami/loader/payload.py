@@ -16,7 +16,7 @@ sys.path.insert(0, str(PORT / 'miami'))
 from userspace.build import validate as validate_init
 from userspace.mkhfs import validate_hfs
 
-CMDLINE = 'debug=0xc serial=3 cpus=1 keepsyms=1 startup_debug=1 -enable_kprintf_spam -noprogress'
+CMDLINE = 'debug=0xc serial=3 cpus=1 keepsyms=1 startup_debug=1 -enable_kprintf_spam -noprogress miamihidtest=5'
 
 
 def validate_ramdisk(data):
