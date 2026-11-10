@@ -1,27 +1,27 @@
 --- a/iokit/conf/files.arm64
 +++ b/iokit/conf/files.arm64
-@@ -10,3 +10,5 @@
- iokit/Kernel/arm/SweetPlatformExpert.cpp                         optional iokitcpp
- 
+@@ -11,3 +11,5 @@
  iokit/Kernel/arm/SweetCPU.cpp                                    optional iokitcpp
+ iokit/Kernel/arm/SweetEntitlements.cpp                           optional iokitcpp
+ iokit/Kernel/arm/SweetKeyStore.cpp                               optional iokitcpp
 +iokit/Kernel/arm/MiamiSurface.cpp                                optional iokitcpp
 +iokit/Kernel/arm/MiamiFramebuffer.cpp                            optional iokitcpp
 --- a/iokit/KernelConfigTables.cpp
 +++ b/iokit/KernelConfigTables.cpp
-@@ -47,6 +47,16 @@
-     "     'IONameMatch'     = 'arm,cortex-a55';"
-     "     'IOProbeScore'    = 10000:32;"
-     "   },"
-+    "   {"
-+    "     'IOClass'         = IOCoreSurfaceRoot;"
-+    "     'IOProviderClass' = IOResources;"
-+    "     'IOMatchCategory' = IOCoreSurfaceRoot;"
-+    "   },"
-+    "   {"
-+    "     'IOClass'         = AppleCLCD;"
-+    "     'IOProviderClass' = IOPlatformDevice;"
-+    "     'IONameMatch'     = 'miami,display';"
-+    "   },"
+@@ -52,6 +52,16 @@
+      'IOProviderClass' = IOResources;
+      'IOMatchCategory' = AppleKeyStore;
+    },
++   {
++     'IOClass'         = IOCoreSurfaceRoot;
++     'IOProviderClass' = IOResources;
++     'IOMatchCategory' = IOCoreSurfaceRoot;
++   },
++   {
++     'IOClass'         = AppleCLCD;
++     'IOProviderClass' = IOPlatformDevice;
++     'IONameMatch'     = 'miami,display';
++   },
  #endif
      "   {"
      "     'IOClass'         = IOPanicPlatform;"
