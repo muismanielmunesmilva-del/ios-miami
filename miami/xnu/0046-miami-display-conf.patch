@@ -1,0 +1,48 @@
+--- a/iokit/conf/files.arm64
++++ b/iokit/conf/files.arm64
+@@ -10,3 +10,5 @@
+ iokit/Kernel/arm/SweetPlatformExpert.cpp                         optional iokitcpp
+ 
+ iokit/Kernel/arm/SweetCPU.cpp                                    optional iokitcpp
++iokit/Kernel/arm/MiamiSurface.cpp                                optional iokitcpp
++iokit/Kernel/arm/MiamiFramebuffer.cpp                            optional iokitcpp
+--- a/iokit/KernelConfigTables.cpp
++++ b/iokit/KernelConfigTables.cpp
+@@ -47,6 +47,16 @@
+     "     'IONameMatch'     = 'arm,cortex-a55';"
+     "     'IOProbeScore'    = 10000:32;"
+     "   },"
++    "   {"
++    "     'IOClass'         = IOCoreSurfaceRoot;"
++    "     'IOProviderClass' = IOResources;"
++    "     'IOMatchCategory' = IOCoreSurfaceRoot;"
++    "   },"
++    "   {"
++    "     'IOClass'         = AppleCLCD;"
++    "     'IOProviderClass' = IOPlatformDevice;"
++    "     'IONameMatch'     = 'miami,display';"
++    "   },"
+ #endif
+     "   {"
+     "     'IOClass'         = IOPanicPlatform;"
+--- a/iokit/Kernel/arm/SweetPlatformExpert.cpp
++++ b/iokit/Kernel/arm/SweetPlatformExpert.cpp
+@@ -62,6 +62,18 @@
+ 		cpus->release();
+ 	}
+ 	createNubs(this, IODTFindMatchingEntries(root, kIODTExclusive, excludeList()));
++
++	/*
++	 * No AppleARMIO driver publishes the /arm-io children: do it here so
++	 * built-in drivers (the display, AppleCLCD) can match them. The GIC is
++	 * driven by the platform code and gets no nub. The nubs hang off this
++	 * platform expert: IOPlatformDevice::compareName asks its provider.
++	 */
++	IORegistryEntry *armio = root->childFromPath("arm-io", gIODTPlane);
++	if (armio != NULL) {
++		createNubs(this, IODTFindMatchingEntries(armio, kIODTExclusive, "('gic')"));
++		armio->release();
++	}
+ }
+ 
+ bool

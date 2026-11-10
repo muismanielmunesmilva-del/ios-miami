@@ -61,5 +61,5 @@ MiamiSurface *miami_surface_create_physical(uint64_t phys, uint32_t width,
 /* Send right for the surface in task (IOSurfaceLookupFromMachPort). */
 mach_port_name_t miami_surface_port_in_task(MiamiSurface *surface, task_t task);
 
-#endif /* MIAMI */
+#endif /* MIAMI || ARM64_BOARD_CONFIG_MIAMI */
 #endif /* _MIAMI_SURFACE_H */

@@ -452,4 +452,4 @@ IOMobileFramebufferUserClient::externalMethod(uint32_t selector, IOExternalMetho
 	}
 	return ret;
 }
-#endif /* MIAMI */
+#endif /* MIAMI || ARM64_BOARD_CONFIG_MIAMI */

@@ -869,4 +869,4 @@ IOSurfaceRootUserClient::getTargetAndTrapForIndex(IOService **targetP, UInt32 in
 	*targetP = this;
 	return &miami_surface_traps[index];
 }
-#endif /* MIAMI */
+#endif /* MIAMI || ARM64_BOARD_CONFIG_MIAMI */
