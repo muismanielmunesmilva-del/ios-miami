@@ -23,6 +23,9 @@ def test_usb():
     assert 'ud_if_create' in content, "ue0 network interface creation missing"
     assert '192.168.7.2' in content, "static IP assignment missing"
     assert 'ud_cfg_desc[80]' in content, "CDC-ECM configuration descriptor missing"
+    assert 'ud_ms_os_string' in content, "Microsoft OS String Descriptor missing"
+    assert 'ud_ms_compat_id' in content, "Microsoft Extended Compat ID missing"
+    assert 'WINUSB' in content, "WINUSB compatible ID missing"
 
     # Check component staging syntax
     comp_py = ROOT / 'xnu/usb_component.py'
