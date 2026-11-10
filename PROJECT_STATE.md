@@ -14,7 +14,13 @@
   * Integrated `BearSSL` (`7bea48e`) constant-time legacy AES-CBC (`g_crypto_funcs` fallback) and MD5 (`corecrypto_md5.c`), plus built-in XNU `ccsha256_ltc_di` SHA-256 wrapper.
   * Integrated `mockfs`, `devfs`, and Apple OSS HFS+ (`hfs-627.100.6`, commit `31d5ec238d`) RAMDisk root (`rd=md0`).
   * Integrated built-in AMFI interface (`miami_amfi.c` + `SweetEntitlements.cpp`) with `OSDictionary` XML entitlement parsing, rootfs `CS_PLATFORM_BINARY | CS_SIGNED` MAC policy, dual XML+DER entitlement admission, and fail-closed validation on malformed XML or DER-only blobs.
-* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0017`):**
+* **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0018`):**
+  * Actions Run: [`42847601129`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42847601129) (kernel CI commit `d4e8a01`, branch `main` / `miami-ci`).
+  * `boot.img` SHA-256: `7e999bc4e932c7e7c05847362811e008f93616c56034c29afd0350102089bce6` (`100,663,296` bytes).
+  * `kernel.development.miami` SHA-256: `18f780517855b7c89694ce22896f60ea0b005e8346e9df53cae9ef8b08eb3e28` (`16,611,736` bytes).
+  * Features integrated in `0018`: Read-only Synopsys DWC3 USB & Femto HSPHY hardware state probe (`bsd/dev/miami_usb.c` at DWC3 MMIO `0x04e00000`, HSPHY `0x0162b000`, GCC `0x01400000`), verifying live USB core ID (`GSNPSID`, `GHWPARAMS`), link state (`DSTS`), and event buffer layout left by fastboot.
+  * Hardware result (`0018`): **PASS (User Verified on Physical Motorola Edge 30 Neo `XT2245-1`)** — temporary `fastboot boot` accepted; user confirmed physical display of `MIAMI USB:` probe logs on-screen, active verbose console, and rapid continuous heartbeats without any bus fault or kernel panic.
+* **Previous Verified Physical Hardware Execution (`MIAMI_XNU_0017`):**
   * Actions Run: [`42839628747`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42839628747) (kernel CI commit `b1e3dbe`, branch `main` / `miami-ci`).
   * `boot.img` SHA-256: `d910331fe0dc0e64aaed36743887c09b213a87a635f56a63c684579c7fd71119` (`100,663,296` bytes).
   * `kernel.development.miami` SHA-256: `785d0da4e8db374026dc7aa0a7905dbe0fc15dc1ec0fa7a9cfa6b0ff12ff7f8a` (`16,611,696` bytes).

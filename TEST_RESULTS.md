@@ -57,3 +57,13 @@
   - Active AMOLED continuous splash mapping at `0x85200000`.
   - User confirmed on-screen display of `MIAMI HID: key 0x...` events dispatched live to the XNU event subsystem.
   - Rock-solid continuous execution with zero panics or reboots.
+
+## Milestone MIAMI_XNU_0018 - Read-Only DWC3 USB & Femto PHY Hardware State Probe
+- **Status:** PASS (Physical Hardware Verified)
+- **Artifacts:** `outputs/miami-xnu-boot-0018/boot.img` (SHA-256 `7e999bc4e932c7e7c05847362811e008f93616c56034c29afd0350102089bce6`)
+- **Kernel:** Single-CPU MIAMI XNU with integrated read-only USB state probe (`miami_usb.c` at `0x04e00000` / `0x0162b000`).
+- **Physical Verification:**
+  - Booted on physical Motorola Edge 30 Neo (`0083244092`).
+  - Active AMOLED continuous splash mapping at `0x85200000`.
+  - User confirmed on-screen execution of `MIAMI USB:` probe without memory bus faults, hang, or panic.
+  - Continuous PID1 heartbeats steady in verbose console.
