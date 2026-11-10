@@ -16,6 +16,7 @@ import aes_component
 import ram_root
 import ufs_component
 import display_component
+import hid_component
 
 APPLE_COMMIT = '1b191cb58250d0705d8a51287127505aa4bc0789'
 PORT = Path(__file__).resolve().parents[2]
@@ -192,6 +193,7 @@ miami_early_configure(uint64_t base, uint64_t row_bytes)
     result['ram_root'] = ram_root.stage(tree, hfs_source)
     result['ufs'] = ufs_component.stage(tree)
     result['display'] = display_component.stage(tree, edit)
+    result['hid'] = hid_component.stage(tree, edit)
     result['storage_drivers_staged'] = True
     manifest.write_text(json.dumps(result, indent=2) + '\n')
     print(f'MIAMI: {len(applied)} required patches and target edits staged; MAX_CPUS=1')
