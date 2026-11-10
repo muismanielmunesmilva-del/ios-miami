@@ -206,6 +206,13 @@ touch_clocks_init(void)
 static void
 touch_pins_init(void)
 {
+	int cfg_pins = 0;
+	(void)PE_parse_boot_argn("touchpins", &cfg_pins, sizeof(cfg_pins));
+	if (!cfg_pins) {
+		printf("MIAMI TOUCH: skipping TLMM pin config (pins preset by ABL; touchpins=0)\n");
+		return;
+	}
+
 	printf("MIAMI TOUCH: configuring TLMM pins (GPIO 0-3, 21, 22)...\n");
 	/* SPI pins: GPIO 0 (MOSI), 1 (MISO), 2 (CS), 3 (CLK) -> mux 1 (qup00) */
 	touch_gpio_cfg(PIN_MOSI, 1, 0, 3, false);
