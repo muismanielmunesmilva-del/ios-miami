@@ -16,14 +16,14 @@
   * Integrated built-in AMFI interface (`miami_amfi.c` + `SweetEntitlements.cpp`) with `OSDictionary` XML entitlement parsing, rootfs `CS_PLATFORM_BINARY | CS_SIGNED` MAC policy, dual XML+DER entitlement admission, and fail-closed validation on malformed XML or DER-only blobs.
 * **Latest Verified Host Delivery (`MIAMI_XNU_0013`):**
   * Actions Run: [`42709183824`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42709183824) (kernel CI commit `9b978f02931a7b45f44daaa2cffdb01fc6ad55c5`, branch `miami-ci-public` / `main`).
-  * `boot.img` SHA-256: `527a41aa80de84059f170b870582c0d00d477557e6623b7e3dff07e82a4b5bf6` (`100,663,296` bytes).
+  * `boot.img` SHA-256: `54640ba0bb21748312dbf409741490ce6d99230d0c3c3f0c1ac15fcf1386852d` (`100,663,296` bytes).
   * `kernel.development.miami` SHA-256: `166c94e58cfa356bffb6512d8698764630bb9e92e5ea9f13387cd89da4de660e` (`16,472,952` bytes, `LC_UUID`: `4D194B4E-5205-325A-98C0-E5E3DDA5BA90`).
   * `payload.bin` (HFS+ RAMDisk) SHA-256: `323b0008e1e0cf1e32db9c4cf495d89f033d9148442837bae8c09cd2582a8122` (`16,591,168` bytes).
   * `miami-root.hfs` SHA-256: `2e07d565d801caf763bd1cd95f55dcd84f406cab98be81c29dec2b8f7c9843c2` (`131,072` bytes; contains `/sbin/launchd`, `/etc/miami-root`, and `/usr/lib/dyld`).
   * `miami-init.macho` SHA-256: `b49bc2fc20d054ef1c75f2b0a644f33d1d35609c20789c84ffc20e5a9294c9a8` (`17,171` bytes).
   * QEMU 150s result: `PASS` (`hfs: mounted MiamiRoot on device b(1, 0)`, `PID=1 (getpid verified)`, `MIAMI Sandbox: launchd op 0`, `MIAMI Sandbox: launchd op 4`, `MIAMI AMFI: platform binary, XML entitlements and Sandbox verified`, `MIAMI HFS+: /usr/lib/dyld and /etc/miami-root verified`, `MIAMI PSYNCH: cvwait timed out as expected`, `MIAMI THREADS: waiting thread signaled successfully`, 23 heartbeats, 93 EL0 SVCs across 20 call sites, `check-pid1-runtime.py` exit code 0).
   * Features integrated in `0013`: BearSSL SHA-1 (`0032`), BearSSL SHA-384 & SHA-512 (`0033`), HFS+ link notes (`0041`), HFS+ `VFS_RENAME_SWAP` (`0052`), `bindfs` (`0037`), `AppleKeyStore` (`0038`, `0055`), `do_coredump = 0` (`0039`), exec short logging (`0042`), console crash logging (`0043`, `0044`), permissive `"Sandbox"` MAC policy (`0050`), `PRIV_WORK_INTERVAL` (`0064`), signed `/usr/lib/dyld` (`MH_DYLINKER`) execution before `/sbin/launchd`.
-  * Hardware result (`0013`): `not yet attempted` (awaiting user command `fastboot boot outputs\miami-xnu-boot-0013\boot.img`).
+  * Hardware result (`0013`): **PASS (User Verified on Physical Motorola Edge 30 Neo `XT2245-1`)** — temporary `fastboot boot` accepted; user confirmed on-screen execution of `MIAMI HFS+: /usr/lib/dyld and /etc/miami-root verified`, `MIAMI AMFI: platform binary, XML entitlements and Sandbox verified`, `MIAMI PSYNCH: cvwait timed out as expected`, `MIAMI THREADS: waiting thread signaled successfully`, and continuous heartbeats. Zero flash writes issued.
 * **Latest Verified Physical Hardware Execution (`MIAMI_XNU_0012`):**
   * Actions Run: [`42695357398`](https://github.com/muismanielmunesmilva-del/ios-miami/actions/runs/42695357398) (kernel CI commit `c6ae04e343fcad26caf4e6be8f5a8e1a4551cdbe`, loader/PID1 commit `6fc0f0d`).
   * `boot.img` SHA-256: `14bf17878b396cb50244d0acf74fff2731f9d567b88c33ba3dd3bc598a405cdc` (`100,663,296` bytes).

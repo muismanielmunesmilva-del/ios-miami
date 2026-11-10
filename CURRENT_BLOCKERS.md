@@ -25,5 +25,5 @@
   2. The phone has 128 GB UFS storage, but Android `userdata` and system partitions must never be erased or corrupted without explicit authorization.
   3. `ios-sweet` implements UFS read/write and shared-cache mapping via patches `0028`, `0030`, `0034`, `0046`, `0069`.
 * **Required Resolution:**
-  1. Test physical device temporary boot of `MIAMI_XNU_0013` (`fastboot boot outputs\miami-xnu-boot-0013\boot.img`) to confirm hardware parity with QEMU (`Sandbox`, AMFI, `/usr/lib/dyld`, and HFS+ root verification).
-  2. Analyze UFS and device storage read paths on SM6375 (`holi`) to prepare for loading libraries or isolated disk images safely without touching Android partitions.
+  1. ~~Test physical device temporary boot of `MIAMI_XNU_0013` (`fastboot boot outputs\miami-xnu-boot-0013\boot.img`)~~ -> **CONFIRMED PASS on physical Motorola Edge 30 Neo `XT2245-1`**: User observed on-screen display of `MIAMI HFS+: /usr/lib/dyld and /etc/miami-root verified`, `MIAMI AMFI: platform binary, XML entitlements and Sandbox verified`, `MIAMI PSYNCH: cvwait timed out as expected`, `MIAMI THREADS: waiting thread signaled successfully`, and repeating heartbeats.
+  2. Implement Option B (`MIAMI_XNU_0014`): UFS controller driver (`miami_ufs.c` / Qualcomm UFSHCI 2.1 at `0x04804000`) for read-only access to isolated disk images without touching Android partitions.

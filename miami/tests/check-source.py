@@ -120,7 +120,7 @@ def check(source, helper, pthread, bearssl, hfs):
     assert '"Cortex-A55"' in cpu_driver
     assert 'topology->num_cpus != 1' in cpu_driver
     assert 'SGI1 self-test timed out' in cpu_driver
-    assert not (source / 'bsd/dev/miami_ufs.c').exists()
+    assert (source / 'bsd/dev/miami_ufs.c').exists()
     assert not (source / 'bsd/dev/miami_usb.c').exists()
     for name in ('osfmk/arm64/start.s', 'osfmk/arm64/arm_vm_init.c', 'osfmk/arm64/miami_early.c'):
         assert '0x9c000000' not in (source / name).read_text().lower()

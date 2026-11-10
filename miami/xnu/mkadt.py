@@ -16,6 +16,7 @@ import adt
 RAM_BASE, RAM_TOTAL, PANIC_SIZE = 0x180000000, 0x40000000, 0x100000
 RAM_SIZE = RAM_TOTAL - PANIC_SIZE
 SOC_BASE = 0x01000000
+UFS_BASE, UFS_SIZE = 0x04804000, 0x20000
 BOOT_CPU_COMPAT = 'arm,cortex-a55'  # MIDR 0x412fd050 measured on the boot CPU
 
 
@@ -38,7 +39,7 @@ def node(name, props=(), children=()):
     return result
 
 
-def build(seed=None):
+def build(seed=None, include_ufs=False):
     seed = os.urandom(64) if seed is None else seed
     if len(seed) != 64:
         raise ValueError('Expected a fresh 64-byte kernel random seed')
@@ -59,16 +60,20 @@ def build(seed=None):
     gic = node('gic', [('compatible', cstr('arm,gic-v3')), ('interrupt-controller', b''),
                ('virtual-timer-intid', u32(19)),
                ('reg', u64(0x0f200000 - SOC_BASE, 0x10000, 0x0f240000 - SOC_BASE, 0x100000))])
-    return node('device-tree', [('compatible', cstr('motorola,miami') + cstr('qcom,sm6375') + cstr('AppleARM')),
-                ('model', cstr('Motorola Edge 30 Neo')), ('#address-cells', u32(2)), ('#size-cells', u32(2))],
-                [chosen, node('defaults'), node('cpus', [('#address-cells', u32(1)), ('#size-cells', u32(0))], [cpu]),
+    children = [chosen, node('defaults'), node('cpus', [('#address-cells', u32(1)), ('#size-cells', u32(0))], [cpu]),
                  node('arm-io', [('device_type', cstr('miami-io')),
                       ('compatible', cstr('miami-io') + cstr('arm-io')),
                       ('#address-cells', u32(2)), ('#size-cells', u32(2)),
                       ('ranges', u64(0, SOC_BASE, 0x100000000 - SOC_BASE))], [gic]),
                  node('miami-fbcon', [('reg', u64(0, 0)), ('width', u32(1080)),
                       ('height', u32(2400)), ('stride', u32(0))]),
-                 node('pram', [('reg', u64(RAM_BASE + RAM_SIZE, PANIC_SIZE))])])
+                 node('pram', [('reg', u64(RAM_BASE + RAM_SIZE, PANIC_SIZE))])]
+    if include_ufs:
+        children.append(node('miami-ufs', [('compatible', cstr('qcom,ufshc')),
+                             ('reg', u64(UFS_BASE, UFS_SIZE))]))
+    return node('device-tree', [('compatible', cstr('motorola,miami') + cstr('qcom,sm6375') + cstr('AppleARM')),
+                ('model', cstr('Motorola Edge 30 Neo')), ('#address-cells', u32(2)), ('#size-cells', u32(2))],
+                children)
 
 
 if __name__ == '__main__':
