@@ -19,6 +19,7 @@ import display_component
 import hid_component
 import keys_component
 import usb_component
+import touch_component
 
 APPLE_COMMIT = '1b191cb58250d0705d8a51287127505aa4bc0789'
 PORT = Path(__file__).resolve().parents[2]
@@ -198,6 +199,7 @@ miami_early_configure(uint64_t base, uint64_t row_bytes)
     result['hid'] = hid_component.stage(tree, edit)
     result['keys'] = keys_component.stage(tree)
     result['usb'] = usb_component.stage(tree)
+    result['touch'] = touch_component.stage(tree)
     result['storage_drivers_staged'] = True
     manifest.write_text(json.dumps(result, indent=2) + '\n')
     print(f'MIAMI: {len(applied)} required patches and target edits staged; MAX_CPUS=1')
