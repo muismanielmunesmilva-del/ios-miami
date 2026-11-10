@@ -534,10 +534,6 @@ static void
 ud_if_create(void)
 {
 	struct ifnet_init_eparams init;
-	static lck_grp_t *grp;
-
-	grp = lck_grp_alloc_init("miami_usb", LCK_GRP_ATTR_NULL);
-	ud.lock = lck_mtx_alloc_init(grp, LCK_ATTR_NULL);
 
 	bzero(&init, sizeof(init));
 	init.ver = IFNET_INIT_CURRENT_VERSION;
@@ -672,7 +668,13 @@ static void
 ud_thread(void *arg __unused, wait_result_t wr __unused)
 {
 	uint32_t ticks = 0;
+	bool if_created = false;
+
 	for (;;) {
+		if (!if_created && ++ticks >= 2000) {
+			if_created = true;
+			ud_if_create();
+		}
 		uint32_t count = dwc_rd(GEVNTCOUNT) & 0xffff;
 		if (count) {
 			ud_sync(UD_EVT, UD_EVT_SIZE);
@@ -686,7 +688,7 @@ ud_thread(void *arg __unused, wait_result_t wr __unused)
 			}
 			dwc_wr(GEVNTCOUNT, count);
 		}
-		if ((++ticks % 30000) == 0) {
+		if ((ticks % 30000) == 0) {
 			printf("MIAMI USB: ue0 rx %llu tx %llu frames\n", ud.rx_frames, ud.tx_frames);
 		}
 		ud_sleep_ms(1);
@@ -699,6 +701,10 @@ miami_usb_gadget_start(vm_offset_t dwc)
 	thread_t thread;
 
 	ud.dwc = dwc;
+	static lck_grp_t *grp;
+	grp = lck_grp_alloc_init("miami_usb", LCK_GRP_ATTR_NULL);
+	ud.lock = lck_mtx_alloc_init(grp, LCK_ATTR_NULL);
+
 	if (kmem_alloc_contig(kernel_map, &ud.dma, UD_SIZE, PAGE_MASK, 0, 0,
 	    KMA_DATA | KMA_ZERO | KMA_PERMANENT, VM_KERN_MEMORY_IOKIT) != KERN_SUCCESS) {
 		printf("MIAMI USB: no DMA memory\n");
@@ -709,7 +715,6 @@ miami_usb_gadget_start(vm_offset_t dwc)
 		return;
 	}
 	ud.dma_pa = ptoa_64(pn);
-	ud_if_create();
 
 	/* Device controller soft reset (PHY and global setup stay as ABL left them). */
 	dwc_wr(DCTL, DCTL_CSFTRST);
