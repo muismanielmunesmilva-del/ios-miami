@@ -19,6 +19,10 @@ def test_usb():
     assert 'GSNPSID' in content
     assert 'GHWPARAMS0' in content
     assert 'DSTS' in content
+    assert 'EP_RX' in content and 'EP_TX' in content, "CDC-ECM endpoints missing"
+    assert 'ud_if_create' in content, "ue0 network interface creation missing"
+    assert '192.168.7.2' in content, "static IP assignment missing"
+    assert 'ud_cfg_desc[80]' in content, "CDC-ECM configuration descriptor missing"
 
     # Check component staging syntax
     comp_py = ROOT / 'xnu/usb_component.py'
