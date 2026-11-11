@@ -534,11 +534,9 @@ goodix_probe(void)
 
 	printf("MIAMI TOUCH: probing Goodix FW version via SPI0...\n");
 	if (goodix_read(GOODIX_FW_VERSION, version, sizeof(version))) {
-		printf("MIAMI TOUCH: FW_VERSION raw (16B): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+		printf("MIAMI TOUCH: FW_VERSION raw: %02x %02x %02x %02x %02x %02x %02x %02x\n",
 		    version[0], version[1], version[2], version[3],
-		    version[4], version[5], version[6], version[7],
-		    version[8], version[9], version[10], version[11],
-		    version[12], version[13], version[14], version[15]);
+		    version[4], version[5], version[6], version[7]);
 
 		char ascii[17];
 		for (int i = 0; i < 16; i++) {
@@ -556,18 +554,31 @@ goodix_probe(void)
 		printf("MIAMI TOUCH: read FW_VERSION failed (continuing with report_addr %#x)\n", touch_report_addr);
 	}
 
-	if (goodix_read(GOODIX_IC_INFO, info, 2)) {
+	printf("MIAMI TOUCH: reading IC_INFO from 0x%x...\n", GOODIX_IC_INFO);
+	if (goodix_read(GOODIX_IC_INFO, info, 256)) {
 		uint32_t length = goodix_le16(info);
-		if (length >= 40 && length < GOODIX_MAX_READ && goodix_read(GOODIX_IC_INFO, info, length)) {
+		printf("MIAMI TOUCH: IC_INFO len=%u [%02x %02x %02x %02x %02x %02x %02x %02x]\n",
+		    length, info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
+		if (length >= 40 && length <= 256) {
 			uint32_t offset = 2u + 16u + 10u + 4u;
 			for (int i = 0; i < 5 && offset < length; i++) {
 				offset += 1u + 2u * info[offset];
 			}
-			if (offset + 38u + 4u <= length) {
-				uint32_t dyn_addr = goodix_le32(info + offset + 38u);
-				if (dyn_addr != 0 && dyn_addr != 0xffffffffu) {
+			if (offset + 36u + 4u <= length) {
+				uint32_t dyn_addr = goodix_le32(info + offset + 36u);
+				printf("MIAMI TOUCH: parsed touch_data_addr=%#x (offset=%u)\n", dyn_addr, offset);
+				if (dyn_addr >= 0x10000u && dyn_addr <= 0x20000u) {
 					touch_report_addr = dyn_addr;
-					printf("MIAMI TOUCH: dynamic report addr=%#x\n", touch_report_addr);
+				}
+			}
+			/* Scan search through info if offset parsing was off */
+			for (uint32_t o = 32; o + 4 <= length && o < 160; o += 2) {
+				uint32_t cand = goodix_le32(info + o);
+				if (cand >= 0x10200u && cand <= 0x10600u && (cand & 3) == 0) {
+					printf("MIAMI TOUCH: candidate touch addr=%#x at info+%u\n", cand, o);
+					if (touch_report_addr == 0x10200u) {
+						touch_report_addr = cand;
+					}
 				}
 			}
 		}
@@ -588,14 +599,39 @@ touch_thread(void *arg, wait_result_t result)
 
 	printf("MIAMI TOUCH: polling thread started (report_addr=%#x)\n", touch_report_addr);
 
+	/* Clear initial chip interrupt if pending on boot */
+	goodix_write(touch_report_addr, &zero, 1u);
+
 	for (;;) {
 		poll_count++;
+		int int_pin = touch_gpio_get(PIN_INT);
 		bool ok = goodix_read(touch_report_addr, report, 8 + 8 * 2 + 2);
 
 		if (poll_count % 200 == 1) {
-			int int_pin = touch_gpio_get(PIN_INT);
-			printf("MIAMI TOUCH: poll #%u ok=%d rep[0..3]=%02x %02x %02x %02x int=%d\n",
-			    poll_count, ok ? 1 : 0, report[0], report[1], report[2], report[3], int_pin);
+			printf("MIAMI TOUCH: poll #%u addr=%#x ok=%d rep[0..3]=%02x %02x %02x %02x int=%d\n",
+			    poll_count, touch_report_addr, ok ? 1 : 0, report[0], report[1], report[2], report[3], int_pin);
+		}
+
+		/*
+		 * Auto-hunter: If INT is asserted LOW by the Goodix chip but report[0] == 0,
+		 * the report address is slightly different from our default. Hunt through
+		 * known Berlin event addresses to lock onto the live buffer!
+		 */
+		if (!int_pin && report[0] == 0 && (poll_count % 50 == 1)) {
+			static const uint32_t scan_addrs[] = {
+				0x10200, 0x10208, 0x10220, 0x10240, 0x10250, 0x10260, 0x10280,
+				0x102a0, 0x102c0, 0x102d0, 0x10300, 0x10320, 0x10340, 0x10380, 0x10400
+			};
+			for (unsigned s = 0; s < sizeof(scan_addrs)/sizeof(scan_addrs[0]); s++) {
+				uint8_t probe_rep[4] = {0};
+				if (goodix_read(scan_addrs[s], probe_rep, 4) && probe_rep[0] != 0 && probe_rep[0] != 0xffu) {
+					printf("MIAMI TOUCH: AUTO-LOCKED active report at %#x (rep=%02x %02x %02x %02x)\n",
+					    scan_addrs[s], probe_rep[0], probe_rep[1], probe_rep[2], probe_rep[3]);
+					touch_report_addr = scan_addrs[s];
+					memcpy(report, probe_rep, 4);
+					break;
+				}
+			}
 		}
 
 		if (ok) {
