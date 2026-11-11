@@ -2,25 +2,26 @@
  * MIAMI Hardware Touchscreen Driver (Goodix GT9916S on QUP GENI SPI0).
  *
  * Motorola Edge 30 Neo (XT2245-1 / SM6375 holi / Blair):
+ * - Display Panel: CSOT NT37701 (csot_nt37701_1080x2400_655_dsc_cmd_v1)
  * - SPI Engine: QUPv3 Wrapper 0, Serial Engine 0 (GENI SPI) at 0x04a80000 (0x4000)
  * - Clock Controller (GCC): 0x01400000 (0x1f0000)
- *     GCC vote register: 0x52008 (APCS clock sleep/enable vote)
- *     QUP0 Core / SE0 clock: BIT(22) = gcc_qupv3_wrap0_s0_clk
- *     QUP0 M-AHB clock:      BIT(20) = gcc_qupv3_wrap_0_m_ahb_clk
- *     QUP0 S-AHB clock:      BIT(21) = gcc_qupv3_wrap_0_s_ahb_clk (or 0x7900c)
- *     SE0 RCG:               0x21148 (cmd_rcgr)
- * - TLMM Pin Controller: 0x00400000 (0x800000)
- *     GPIO 0: MOSI (qup00, mux 1)
- *     GPIO 1: MISO (qup00, mux 1)
- *     GPIO 2: CS_N (qup00, mux 1 or GPIO output)
- *     GPIO 3: CLK  (qup00, mux 1)
- *     GPIO 21: RESET_N (active low, GPIO output, default HIGH)
- *     GPIO 22: INT_N   (active low, GPIO input, pull up)
- * - Touch Digitizer: Goodix GT9916S
+ *     GCC vote register: 0x7900c (APCS branch clock enable vote: bits 6..10)
+ *     SE0 RCG:           0x1f148 (cmd_rcgr), 0x1f14c (cfg_rcgr = 1 for TCXO 19.2MHz)
+ * - TLMM Pin Controller: 0x00400000 (0x100000)
+ *     GPIO 0: MOSI (qup00, mux 1, 10mA, no pull)
+ *     GPIO 1: MISO (qup00, mux 1, 10mA, no pull)
+ *     GPIO 2: CLK  (qup00, mux 1, 10mA, no pull)
+ *     GPIO 3: CS_N (qup00, mux 1, 10mA, no pull)
+ *     GPIO 21: RESET_N (GPIO 21, active low, 8mA, pull-up)
+ *     GPIO 22: INT_N   (GPIO 22, active low, 8mA, pull-up)
+ *     GPIO 135: IOVDD  (GPIO 135, 1.8V digital rail enable, GPIO out, default HIGH)
+ *     GPIO 136: AVDD   (GPIO 136, 3.0V analog rail enable, GPIO out, default HIGH)
+ * - Touch Digitizer: Goodix GT9916S (Berlin architecture)
  *     SPI framing: 8-bit, Mode 0 (CPOL=0, CPHA=0), MSB first, 4-byte FIFO packing
  *     Read command: 0xF1, 32-bit addr BE, 3 dummy bytes (0xFF, 0xFF, 0xFF)
  *     Write command: 0xF0, 32-bit addr BE, data...
- *     Touch report addr: Goodix Berlin protocol (0x10014 version, 0x10070 IC info)
+ *     Touch report addr: Goodix Berlin protocol (0x10014 version, 0x10070 IC info, fallback 0x10200)
+ *     Raw Sensor Range: X: 0..8640, Y: 0..19200 -> Scaled to 1080x2400 (div by 8)
  *     ACK register: 0x00 written to status byte at touch_address
  *
  * Dispatches coordinates directly to MiamiHIDTouch subsystem (miami_hid_touch).
@@ -67,10 +68,12 @@ void miami_touch_init(void);
 /* TLMM GPIO pins */
 #define PIN_MOSI             0u
 #define PIN_MISO             1u
-#define PIN_CS               2u
-#define PIN_CLK              3u
+#define PIN_CLK              2u
+#define PIN_CS               3u
 #define PIN_RESET            21u
 #define PIN_INT              22u
+#define PIN_IOVDD            135u
+#define PIN_AVDD             136u
 
 /* GENI SE registers */
 #define GENI_FORCE_DEFAULT   0x020u
@@ -133,7 +136,7 @@ void miami_touch_init(void);
 static vm_offset_t touch_se, touch_gcc, touch_tlmm;
 static bool touch_started;
 static uint32_t touch_fifo_depth = 16;
-static uint32_t touch_report_addr = 0;
+static uint32_t touch_report_addr = 0x10200u;
 static uint32_t touch_max_x = 1080;
 static uint32_t touch_max_y = 2400;
 static int touch_sleep_chan;
@@ -241,26 +244,34 @@ touch_clocks_init(void)
 static void
 touch_pins_init(void)
 {
-	int cfg_pins = 0;
+	int cfg_pins = 1;
 	(void)PE_parse_boot_argn("touchpins", &cfg_pins, sizeof(cfg_pins));
 	if (!cfg_pins) {
-		printf("MIAMI TOUCH: skipping TLMM pin config (pins preset by ABL; touchpins=0)\n");
+		printf("MIAMI TOUCH: skipping TLMM pin config (touchpins=0)\n");
 		return;
 	}
 
-	printf("MIAMI TOUCH: configuring TLMM pins (GPIO 0-3, 21, 22)...\n");
-	/* SPI pins: GPIO 0 (MOSI), 1 (MISO), 2 (CS), 3 (CLK) -> mux 1 (qup00) */
-	touch_gpio_cfg(PIN_MOSI, 1, 0, 3, false);
-	touch_gpio_cfg(PIN_MISO, 1, 0, 3, false);
-	touch_gpio_cfg(PIN_CS,   1, 0, 3, false);
-	touch_gpio_cfg(PIN_CLK,  1, 0, 3, false);
+	printf("MIAMI TOUCH: powering Goodix rails (GPIO 135 IOVDD, GPIO 136 AVDD)...\n");
+	/* Power rails: GPIO 135 (IOVDD 1.8V), GPIO 136 (AVDD 3.0V) -> GPIO output HIGH */
+	touch_gpio_cfg(PIN_IOVDD, 0, 0, 3, true);
+	touch_gpio_set(PIN_IOVDD, true);
+	touch_gpio_cfg(PIN_AVDD,  0, 0, 3, true);
+	touch_gpio_set(PIN_AVDD,  true);
+	delay(10000); /* 10ms for power rails to stabilize */
+
+	printf("MIAMI TOUCH: configuring TLMM pins (GPIO 0-3 SPI, 21 RST, 22 INT)...\n");
+	/* SPI pins: GPIO 0 (MOSI), 1 (MISO), 2 (CLK), 3 (CS) -> mux 1 (qup00), 10mA, no pull */
+	touch_gpio_cfg(PIN_MOSI, 1, 0, 4, false);
+	touch_gpio_cfg(PIN_MISO, 1, 0, 4, false);
+	touch_gpio_cfg(PIN_CLK,  1, 0, 4, false);
+	touch_gpio_cfg(PIN_CS,   1, 0, 4, false);
 
 	/* Reset pin: GPIO 21 (GPIO output, start High) */
-	touch_gpio_cfg(PIN_RESET, 0, 0, 2, true);
+	touch_gpio_cfg(PIN_RESET, 0, 3, 3, true);
 	touch_gpio_set(PIN_RESET, true);
 
 	/* Interrupt pin: GPIO 22 (GPIO input, pull up) */
-	touch_gpio_cfg(PIN_INT, 0, 3, 0, false);
+	touch_gpio_cfg(PIN_INT, 0, 3, 3, false);
 }
 
 static void
@@ -508,25 +519,38 @@ goodix_probe(void)
 {
 	uint8_t version[28];
 	static uint8_t info[GOODIX_MAX_READ];
-	int rst = 0;
+	int rst = 1;
 
 	(void)PE_parse_boot_argn("touchreset", &rst, sizeof(rst));
 	if (rst) {
 		printf("MIAMI TOUCH: resetting Goodix chip via GPIO 21...\n");
 		touch_gpio_set(PIN_RESET, false);
-		delay(2000);
+		delay(20000); /* 20 ms low */
 		touch_gpio_set(PIN_RESET, true);
-		touch_wait(100);
+		delay(120000); /* 120 ms for Berlin MCU boot */
 	}
+
+	/* Default report address for GT9916S / Berlin */
+	touch_report_addr = 0x10200u;
 
 	printf("MIAMI TOUCH: probing Goodix FW version via SPI0...\n");
 	if (!goodix_read(GOODIX_FW_VERSION, version, sizeof(version))) {
 		printf("MIAMI TOUCH: read FW_VERSION failed\n");
 		return false;
 	}
-	printf("MIAMI TOUCH: FW_VERSION raw: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+	printf("MIAMI TOUCH: FW_VERSION raw (16B): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
 	    version[0], version[1], version[2], version[3],
-	    version[4], version[5], version[6], version[7]);
+	    version[4], version[5], version[6], version[7],
+	    version[8], version[9], version[10], version[11],
+	    version[12], version[13], version[14], version[15]);
+
+	char ascii[17];
+	for (int i = 0; i < 16; i++) {
+		ascii[i] = (version[i] >= 32 && version[i] <= 126) ? (char)version[i] : '.';
+	}
+	ascii[16] = '\0';
+	printf("MIAMI TOUCH: FW_VERSION ascii: \"%s\"\n", ascii);
+
 	if (!goodix_checksum_ok(version, sizeof(version))) {
 		printf("MIAMI TOUCH: bad FW_VERSION checksum: %02x %02x %02x %02x...\n",
 		    version[0], version[1], version[2], version[3]);
@@ -554,10 +578,9 @@ goodix_probe(void)
 	}
 
 	if (touch_report_addr == 0) {
-		/* Fallback to standard Berlin-D report address */
 		touch_report_addr = 0x10200u;
-		printf("MIAMI TOUCH: using standard Berlin report addr=%#x\n", touch_report_addr);
 	}
+	printf("MIAMI TOUCH: using Berlin report addr=%#x\n", touch_report_addr);
 	return true;
 }
 
@@ -636,7 +659,7 @@ miami_touch_init(void)
 	printf("MIAMI TOUCH: initializing MMIO mapping...\n");
 	touch_se = ml_io_map(TOUCH_SE_PA, 0x4000);
 	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x1f0000);
-	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x30000);
+	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x100000);
 
 	if (!touch_se || !touch_gcc) {
 		printf("MIAMI TOUCH: MMIO mapping failed (se=%p gcc=%p)\n",
