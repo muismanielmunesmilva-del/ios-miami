@@ -43,9 +43,23 @@ void miami_touch_init(void);
 #define TOUCH_GCC_PA         0x01400000u
 #define TOUCH_TLMM_PA        0x00400000u
 
-#define TOUCH_GCC_VOTE       0x52008u
-#define TOUCH_RCG_CMD        0x21148u
-#define TOUCH_RCG_CFG        (TOUCH_RCG_CMD + 4u)
+/*
+ * GCC Registers for QUPv3 WRAP0 and SE0 (from Blair gcc-blair.c):
+ * - 0x7900c: GCC_APCS_CLOCK_BRANCH_ENA_VOTE (peripheral branch clock vote)
+ *     BIT(6):  gcc_qupv3_wrap_0_m_ahb_clk
+ *     BIT(7):  gcc_qupv3_wrap_0_s_ahb_clk
+ *     BIT(8):  gcc_qupv3_wrap0_core_clk
+ *     BIT(9):  gcc_qupv3_wrap0_core_2x_clk
+ *     BIT(10): gcc_qupv3_wrap0_s0_clk
+ * - 0x1f144: gcc_qupv3_wrap0_s0_clk halt register (bit 31: 0=active, 1=halted)
+ * - 0x1f148: gcc_qupv3_wrap0_s0_clk_src CMD_RCGR
+ * - 0x1f14c: gcc_qupv3_wrap0_s0_clk_src CFG_RCGR
+ */
+#define TOUCH_GCC_VOTE       0x7900cu
+#define TOUCH_QUP_VOTE_MASK  ((1u << 6) | (1u << 7) | (1u << 8) | (1u << 9) | (1u << 10))
+#define TOUCH_BRANCH_HALT    0x1f144u
+#define TOUCH_RCG_CMD        0x1f148u
+#define TOUCH_RCG_CFG        0x1f14cu
 
 #define TLMM_GPIO_CFG(n)     ((uint32_t)(n) * 0x1000u)
 #define TLMM_GPIO_IO(n)      (TLMM_GPIO_CFG(n) + 4u)
@@ -188,21 +202,37 @@ static bool
 touch_clocks_init(void)
 {
 	printf("MIAMI TOUCH: enabling GCC clocks...\n");
-	/*
-	 * Vote for QUPv3 wrapper 0 core, M-AHB and S-AHB in GCC.
-	 * BIT(22): gcc_qupv3_wrap0_s0_clk
-	 * BIT(20): gcc_qupv3_wrap_0_m_ahb_clk
-	 * BIT(21): gcc_qupv3_wrap_0_s_ahb_clk
-	 */
-	uint32_t vote_mask = (1u << 22) | (1u << 20) | (1u << 21);
-	uint32_t v = touch_rd(touch_gcc, TOUCH_GCC_VOTE);
-	touch_wr(touch_gcc, TOUCH_GCC_VOTE, v | vote_mask);
+	uint32_t rcg_cmd_before = touch_rd(touch_gcc, TOUCH_RCG_CMD);
+	uint32_t rcg_cfg_before = touch_rd(touch_gcc, TOUCH_RCG_CFG);
+	uint32_t halt_before = touch_rd(touch_gcc, TOUCH_BRANCH_HALT);
+	uint32_t vote_before = touch_rd(touch_gcc, TOUCH_GCC_VOTE);
+	printf("MIAMI TOUCH: before: rcg_cmd=%#x rcg_cfg=%#x halt=%#x vote=%#x\n",
+	    rcg_cmd_before, rcg_cfg_before, halt_before, vote_before);
 
-	/* Check RCG configuration */
-	uint32_t rcg_cmd = touch_rd(touch_gcc, TOUCH_RCG_CMD);
-	uint32_t rcg_cfg = touch_rd(touch_gcc, TOUCH_RCG_CFG);
-	printf("MIAMI TOUCH: gcc vote=%#x rcg_cmd=%#x rcg_cfg=%#x\n",
-	    touch_rd(touch_gcc, TOUCH_GCC_VOTE), rcg_cmd, rcg_cfg);
+	/*
+	 * Configure RCG: Source = TCXO (19.2 MHz, parent map 0, bits [10:8] = 0).
+	 * Div = 1 (pre_div = 2*1 - 1 = 1, bits [4:0] = 1).
+	 * Mode = 0 (bypass/div mode, no MND, bits [13:12] = 0).
+	 * If not already configured (bits [10:0] == 0), set CFG_RCGR = 1u.
+	 */
+	if ((rcg_cfg_before & 0x71fu) == 0u) {
+		touch_wr(touch_gcc, TOUCH_RCG_CFG, 1u);
+		touch_wr(touch_gcc, TOUCH_RCG_CMD, rcg_cmd_before | 1u); /* CMD_UPDATE */
+		for (int i = 0; i < 1000; i++) {
+			if (!(touch_rd(touch_gcc, TOUCH_RCG_CMD) & 1u)) break;
+			delay(10);
+		}
+	}
+
+	/* Vote for QUPv3 wrapper 0 core, AHB and SE0 clocks in GCC 0x7900c */
+	touch_wr(touch_gcc, TOUCH_GCC_VOTE, vote_before | TOUCH_QUP_VOTE_MASK);
+
+	uint32_t rcg_cmd_after = touch_rd(touch_gcc, TOUCH_RCG_CMD);
+	uint32_t rcg_cfg_after = touch_rd(touch_gcc, TOUCH_RCG_CFG);
+	uint32_t halt_after = touch_rd(touch_gcc, TOUCH_BRANCH_HALT);
+	uint32_t vote_after = touch_rd(touch_gcc, TOUCH_GCC_VOTE);
+	printf("MIAMI TOUCH: after: rcg_cmd=%#x rcg_cfg=%#x halt=%#x vote=%#x (s0 halted=%d)\n",
+	    rcg_cmd_after, rcg_cfg_after, halt_after, vote_after, (halt_after >> 31) & 1u);
 
 	delay(1000);
 	return true;
@@ -309,12 +339,7 @@ geni_spi_init(void)
 		}
 	}
 
-#define TW(off, val) do { \
-	uint32_t _v = (val); \
-	printf("MIAMI TOUCH: wr %#x <- %#x\n", (unsigned)(off), _v); \
-	delay(20000); \
-	touch_wr(touch_se, (off), _v); \
-} while (0)
+#define TW(off, val) touch_wr(touch_se, (off), (val))
 
 	TW(GENI_M_IRQ_CLEAR, 0xffffffffu);
 	TW(GENI_S_IRQ_CLEAR, 0xffffffffu);
@@ -358,8 +383,16 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 	uint32_t sent = 0, received = 0, status = 0;
 	uint64_t deadline;
 
+	int notxfer = 0;
+	(void)PE_parse_boot_argn("touchnoxfer", &notxfer, sizeof(notxfer));
+	if (notxfer) {
+		printf("MIAMI TOUCH: skipping transfer (touchnoxfer=1)\n");
+		return false;
+	}
+
 	for (int i = 0; touch_rd(touch_se, GENI_STATUS) & 1u; i++) {
 		if (i > 2000) {
+			printf("MIAMI TOUCH: GENI_STATUS busy timeout, recovering\n");
 			geni_recover();
 			break;
 		}
@@ -368,9 +401,13 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 	touch_wr(touch_se, GENI_M_IRQ_CLEAR, 0xffffffffu);
 	touch_wr(touch_se, SPI_TX_TRANS_LEN, length);
 	touch_wr(touch_se, SPI_RX_TRANS_LEN, length);
-	touch_wr(touch_se, GENI_M_CMD0, SPI_FULL_DUPLEX);
 
-	clock_interval_to_deadline(100, NSEC_PER_MSEC, &deadline);
+	printf("MIAMI TOUCH: xfer len=%u, writing M_CMD0...\n", length);
+	delay(10000);
+	touch_wr(touch_se, GENI_M_CMD0, SPI_FULL_DUPLEX);
+	printf("MIAMI TOUCH: M_CMD0 written, status=%#x\n", touch_rd(touch_se, GENI_M_IRQ_STATUS));
+
+	clock_interval_to_deadline(200, NSEC_PER_MSEC, &deadline);
 	while (mach_absolute_time() < deadline) {
 		while (sent < length && (touch_rd(touch_se, GENI_TX_FIFO_STATUS) & 0x0fffffffu) + 1u < touch_fifo_depth) {
 			uint32_t word = 0;
@@ -382,6 +419,7 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 		status = touch_rd(touch_se, GENI_M_IRQ_STATUS);
 		geni_drain(rx, length, &received);
 		if (status & M_ERRORS) {
+			printf("MIAMI TOUCH: xfer error status=%#x\n", status);
 			break;
 		}
 		if (status & M_CMD_DONE) {
@@ -390,8 +428,12 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 			if (received == length) {
 				return true;
 			}
+			printf("MIAMI TOUCH: xfer done but recv %u != %u\n", received, length);
 			break;
 		}
+	}
+	if (!(status & M_CMD_DONE)) {
+		printf("MIAMI TOUCH: xfer timeout (sent=%u recv=%u status=%#x)\n", sent, received, status);
 	}
 	geni_recover();
 	return false;
@@ -485,6 +527,9 @@ goodix_probe(void)
 		printf("MIAMI TOUCH: read FW_VERSION failed\n");
 		return false;
 	}
+	printf("MIAMI TOUCH: FW_VERSION raw: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+	    version[0], version[1], version[2], version[3],
+	    version[4], version[5], version[6], version[7]);
 	if (!goodix_checksum_ok(version, sizeof(version))) {
 		printf("MIAMI TOUCH: bad FW_VERSION checksum: %02x %02x %02x %02x...\n",
 		    version[0], version[1], version[2], version[3]);
@@ -591,13 +636,8 @@ miami_touch_init(void)
 
 	printf("MIAMI TOUCH: initializing MMIO mapping...\n");
 	touch_se = ml_io_map(TOUCH_SE_PA, 0x4000);
-	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x60000);
-	touch_tlmm = 0;
-	int cfg_tlmm = 0;
-	(void)PE_parse_boot_argn("touchtlmm", &cfg_tlmm, sizeof(cfg_tlmm));
-	if (cfg_tlmm) {
-		touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x30000);
-	}
+	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x1f0000);
+	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x30000);
 
 	if (!touch_se || !touch_gcc) {
 		printf("MIAMI TOUCH: MMIO mapping failed (se=%p gcc=%p)\n",
