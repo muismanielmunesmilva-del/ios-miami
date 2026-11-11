@@ -244,10 +244,10 @@ touch_clocks_init(void)
 static void
 touch_pins_init(void)
 {
-	int cfg_pins = 1;
+	int cfg_pins = 0;
 	(void)PE_parse_boot_argn("touchpins", &cfg_pins, sizeof(cfg_pins));
 	if (!cfg_pins) {
-		printf("MIAMI TOUCH: skipping TLMM pin config (touchpins=0)\n");
+		printf("MIAMI TOUCH: skipping TLMM pin config (pins preset by ABL)\n");
 		return;
 	}
 
@@ -519,10 +519,10 @@ goodix_probe(void)
 {
 	uint8_t version[28];
 	static uint8_t info[GOODIX_MAX_READ];
-	int rst = 1;
+	int rst = 0;
 
 	(void)PE_parse_boot_argn("touchreset", &rst, sizeof(rst));
-	if (rst) {
+	if (rst && touch_tlmm) {
 		printf("MIAMI TOUCH: resetting Goodix chip via GPIO 21...\n");
 		touch_gpio_set(PIN_RESET, false);
 		delay(20000); /* 20 ms low */
@@ -530,56 +530,50 @@ goodix_probe(void)
 		delay(120000); /* 120 ms for Berlin MCU boot */
 	}
 
-	/* Default report address for GT9916S / Berlin */
+	/* Default report address for GT9916S / Berlin-D */
 	touch_report_addr = 0x10200u;
 
 	printf("MIAMI TOUCH: probing Goodix FW version via SPI0...\n");
-	if (!goodix_read(GOODIX_FW_VERSION, version, sizeof(version))) {
-		printf("MIAMI TOUCH: read FW_VERSION failed\n");
-		return false;
-	}
-	printf("MIAMI TOUCH: FW_VERSION raw (16B): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
-	    version[0], version[1], version[2], version[3],
-	    version[4], version[5], version[6], version[7],
-	    version[8], version[9], version[10], version[11],
-	    version[12], version[13], version[14], version[15]);
+	if (goodix_read(GOODIX_FW_VERSION, version, sizeof(version))) {
+		printf("MIAMI TOUCH: FW_VERSION raw (16B): %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+		    version[0], version[1], version[2], version[3],
+		    version[4], version[5], version[6], version[7],
+		    version[8], version[9], version[10], version[11],
+		    version[12], version[13], version[14], version[15]);
 
-	char ascii[17];
-	for (int i = 0; i < 16; i++) {
-		ascii[i] = (version[i] >= 32 && version[i] <= 126) ? (char)version[i] : '.';
-	}
-	ascii[16] = '\0';
-	printf("MIAMI TOUCH: FW_VERSION ascii: \"%s\"\n", ascii);
+		char ascii[17];
+		for (int i = 0; i < 16; i++) {
+			ascii[i] = (version[i] >= 32 && version[i] <= 126) ? (char)version[i] : '.';
+		}
+		ascii[16] = '\0';
+		printf("MIAMI TOUCH: FW_VERSION ascii: \"%s\"\n", ascii);
 
-	if (!goodix_checksum_ok(version, sizeof(version))) {
-		printf("MIAMI TOUCH: bad FW_VERSION checksum: %02x %02x %02x %02x...\n",
-		    version[0], version[1], version[2], version[3]);
-		/* Try probe fallback */
+		if (goodix_checksum_ok(version, sizeof(version))) {
+			printf("MIAMI TOUCH: chip \"%.6s\", firmware \"%.8s\" %02x.%02x.%02x.%02x, sensor %u\n",
+			    (const char *)version, (const char *)version + 10,
+			    version[18], version[19], version[20], version[21], version[23]);
+		}
 	} else {
-		printf("MIAMI TOUCH: chip \"%.6s\", firmware \"%.8s\" %02x.%02x.%02x.%02x, sensor %u\n",
-		    (const char *)version, (const char *)version + 10,
-		    version[18], version[19], version[20], version[21], version[23]);
+		printf("MIAMI TOUCH: read FW_VERSION failed (continuing with report_addr %#x)\n", touch_report_addr);
 	}
 
-	if (!goodix_read(GOODIX_IC_INFO, info, 2)) {
-		printf("MIAMI TOUCH: read IC_INFO header failed\n");
-		return false;
-	}
-	uint32_t length = goodix_le16(info);
-	if (length >= 40 && length < GOODIX_MAX_READ && goodix_read(GOODIX_IC_INFO, info, length)) {
-		uint32_t offset = 2u + 16u + 10u + 4u;
-		for (int i = 0; i < 5 && offset < length; i++) {
-			offset += 1u + 2u * info[offset];
-		}
-		if (offset + 48u + 2u <= length) {
-			touch_report_addr = goodix_le32(info + offset + 44u);
-			printf("MIAMI TOUCH: dynamic report addr=%#x\n", touch_report_addr);
+	if (goodix_read(GOODIX_IC_INFO, info, 2)) {
+		uint32_t length = goodix_le16(info);
+		if (length >= 40 && length < GOODIX_MAX_READ && goodix_read(GOODIX_IC_INFO, info, length)) {
+			uint32_t offset = 2u + 16u + 10u + 4u;
+			for (int i = 0; i < 5 && offset < length; i++) {
+				offset += 1u + 2u * info[offset];
+			}
+			if (offset + 38u + 4u <= length) {
+				uint32_t dyn_addr = goodix_le32(info + offset + 38u);
+				if (dyn_addr != 0 && dyn_addr != 0xffffffffu) {
+					touch_report_addr = dyn_addr;
+					printf("MIAMI TOUCH: dynamic report addr=%#x\n", touch_report_addr);
+				}
+			}
 		}
 	}
 
-	if (touch_report_addr == 0) {
-		touch_report_addr = 0x10200u;
-	}
 	printf("MIAMI TOUCH: using Berlin report addr=%#x\n", touch_report_addr);
 	return true;
 }
@@ -595,21 +589,20 @@ touch_thread(void *arg, wait_result_t result)
 	printf("MIAMI TOUCH: polling thread started (report_addr=%#x)\n", touch_report_addr);
 
 	for (;;) {
-		bool int_active = !touch_gpio_get(PIN_INT);
-		if (int_active || (touch_state[0].down || touch_state[1].down)) {
-			if (goodix_read(touch_report_addr, report, 8 + 8 * 2 + 2) && report[0] != 0) {
-				uint32_t count = report[2] & 0x0fu;
-				if ((report[0] & GOODIX_STATUS_TOUCH) && count > 2 && count <= GOODIX_MAX_TOUCHES) {
-					(void)goodix_read(touch_report_addr + 8u, report + 8u, 8u * count + 2u);
-				}
-				/* Acknowledge event */
+		if (goodix_read(touch_report_addr, report, 8 + 8 * 2 + 2)) {
+			if (report[0] != 0) {
+				/* Acknowledge event immediately */
 				goodix_write(touch_report_addr, &zero, 1u);
 
 				if (report[0] & GOODIX_STATUS_TOUCH) {
+					uint32_t count = report[2] & 0x0fu;
+					if (count > 2 && count <= GOODIX_MAX_TOUCHES) {
+						(void)goodix_read(touch_report_addr + 8u, report + 8u, 8u * count + 2u);
+					}
 					bool seen[GOODIX_MAX_TOUCHES] = {false};
 					for (uint32_t i = 0; i < count && i < GOODIX_MAX_TOUCHES; i++) {
 						const uint8_t *t = report + 8u + 8u * i;
-						uint32_t id = t[0] >> 4;
+						uint32_t id = (t[0] >> 4) & 0x0fu;
 						if (id >= GOODIX_MAX_TOUCHES) continue;
 						uint32_t rx = goodix_le16(t + 2);
 						uint32_t ry = goodix_le16(t + 4);
@@ -631,6 +624,15 @@ touch_thread(void *arg, wait_result_t result)
 							printf("MIAMI TOUCH: [touch #%u] UP\n", id);
 							miami_hid_touch(id, 0, touch_state[id].x, touch_state[id].y);
 						}
+					}
+				}
+			} else {
+				/* No touch active: ensure all fingers are marked UP */
+				for (uint32_t id = 0; id < GOODIX_MAX_TOUCHES; id++) {
+					if (touch_state[id].down) {
+						touch_state[id].down = false;
+						printf("MIAMI TOUCH: [touch #%u] UP\n", id);
+						miami_hid_touch(id, 0, touch_state[id].x, touch_state[id].y);
 					}
 				}
 			}
@@ -659,15 +661,15 @@ miami_touch_init(void)
 	printf("MIAMI TOUCH: initializing MMIO mapping...\n");
 	touch_se = ml_io_map(TOUCH_SE_PA, 0x4000);
 	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x1f0000);
-	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x100000);
+	touch_tlmm = 0; /* Keep 0 to avoid any accidental EL1 TLMM accesses */
 
 	if (!touch_se || !touch_gcc) {
 		printf("MIAMI TOUCH: MMIO mapping failed (se=%p gcc=%p)\n",
 		    (void *)touch_se, (void *)touch_gcc);
 		return;
 	}
-	printf("MIAMI TOUCH: MMIO mapped (se=%p gcc=%p tlmm=%p)\n",
-	    (void *)touch_se, (void *)touch_gcc, (void *)touch_tlmm);
+	printf("MIAMI TOUCH: MMIO mapped (se=%p gcc=%p)\n",
+	    (void *)touch_se, (void *)touch_gcc);
 
 	touch_clocks_init();
 	touch_pins_init();
@@ -677,9 +679,7 @@ miami_touch_init(void)
 		return;
 	}
 
-	if (!goodix_probe()) {
-		printf("MIAMI TOUCH: Goodix chip probe returned false; starting worker anyway\n");
-	}
+	goodix_probe();
 
 	kern_return_t kr = kernel_thread_start(touch_thread, NULL, &thread);
 	if (kr == KERN_SUCCESS) {
