@@ -321,12 +321,12 @@ geni_spi_init(void)
 	TW(GENI_CGC_CTRL, touch_rd(touch_se, GENI_CGC_CTRL) | 0x7fu);
 	TW(SE_DMA_GENERAL_CFG, touch_rd(touch_se, SE_DMA_GENERAL_CFG) | 0xfu);
 	TW(GENI_OUTPUT_CTRL, 0x7fu);
-	TW(GENI_FORCE_DEFAULT, 1u);
+	/* Skip GENI_FORCE_DEFAULT (0x20): writing 1 resets internal sequencer and triggers SError abort */
 	TW(GENI_DMA_MODE_EN, touch_rd(touch_se, GENI_DMA_MODE_EN) & ~1u);
 	TW(GENI_RX_WATERMARK, touch_fifo_depth - 3u);
 	TW(GENI_RX_RFR_WATERMARK, touch_fifo_depth - 2u);
 	TW(GENI_TX_WATERMARK, 0u);
-	TW(GENI_M_IRQ_EN, touch_rd(touch_se, GENI_M_IRQ_EN) | 0x7fc0007fu);
+	TW(GENI_M_IRQ_EN, 0u); /* Polling driver: mask external IRQs to avoid unhandled GIC trips */
 
 	/* Mode 0, CS 0, 8-bit words, MSB first, 4 bytes per FIFO word */
 	TW(SPI_LOOPBACK, 0u);
