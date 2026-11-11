@@ -300,37 +300,55 @@ geni_spi_init(void)
 	}
 	printf("MIAMI TOUCH: FIFO depth=%u\n", touch_fifo_depth);
 
-	touch_wr(touch_se, GENI_M_IRQ_CLEAR, 0xffffffffu);
-	touch_wr(touch_se, GENI_S_IRQ_CLEAR, 0xffffffffu);
-	touch_wr(touch_se, GENI_CGC_CTRL, touch_rd(touch_se, GENI_CGC_CTRL) | 0x7fu);
-	touch_wr(touch_se, SE_DMA_GENERAL_CFG, touch_rd(touch_se, SE_DMA_GENERAL_CFG) | 0xfu);
-	touch_wr(touch_se, GENI_OUTPUT_CTRL, 0x7fu);
-	touch_wr(touch_se, GENI_FORCE_DEFAULT, 1u);
-	touch_wr(touch_se, GENI_DMA_MODE_EN, touch_rd(touch_se, GENI_DMA_MODE_EN) & ~1u);
-	touch_wr(touch_se, GENI_RX_WATERMARK, touch_fifo_depth - 3u);
-	touch_wr(touch_se, GENI_RX_RFR_WATERMARK, touch_fifo_depth - 2u);
-	touch_wr(touch_se, GENI_TX_WATERMARK, 0u);
-	touch_wr(touch_se, GENI_M_IRQ_EN, touch_rd(touch_se, GENI_M_IRQ_EN) | 0x7fc0007fu);
+	{
+		int nowr = 0;
+		(void)PE_parse_boot_argn("touchnowr", &nowr, sizeof(nowr));
+		if (nowr) {
+			printf("MIAMI TOUCH: skipping GENI writes (touchnowr=1)\n");
+			return false;
+		}
+	}
+
+#define TW(off, val) do { \
+	uint32_t _v = (val); \
+	printf("MIAMI TOUCH: wr %#x <- %#x\n", (unsigned)(off), _v); \
+	delay(20000); \
+	touch_wr(touch_se, (off), _v); \
+} while (0)
+
+	TW(GENI_M_IRQ_CLEAR, 0xffffffffu);
+	TW(GENI_S_IRQ_CLEAR, 0xffffffffu);
+	TW(GENI_CGC_CTRL, touch_rd(touch_se, GENI_CGC_CTRL) | 0x7fu);
+	TW(SE_DMA_GENERAL_CFG, touch_rd(touch_se, SE_DMA_GENERAL_CFG) | 0xfu);
+	TW(GENI_OUTPUT_CTRL, 0x7fu);
+	TW(GENI_FORCE_DEFAULT, 1u);
+	TW(GENI_DMA_MODE_EN, touch_rd(touch_se, GENI_DMA_MODE_EN) & ~1u);
+	TW(GENI_RX_WATERMARK, touch_fifo_depth - 3u);
+	TW(GENI_RX_RFR_WATERMARK, touch_fifo_depth - 2u);
+	TW(GENI_TX_WATERMARK, 0u);
+	TW(GENI_M_IRQ_EN, touch_rd(touch_se, GENI_M_IRQ_EN) | 0x7fc0007fu);
 
 	/* Mode 0, CS 0, 8-bit words, MSB first, 4 bytes per FIFO word */
-	touch_wr(touch_se, SPI_LOOPBACK, 0u);
-	touch_wr(touch_se, SPI_DEMUX_SEL, 0u);
-	touch_wr(touch_se, SPI_CPHA, 0u);
-	touch_wr(touch_se, SPI_CPOL, 0u);
-	touch_wr(touch_se, SPI_DEMUX_OUTPUT_INV, 0u);
-	touch_wr(touch_se, SPI_TRANS_CFG, touch_rd(touch_se, SPI_TRANS_CFG) & ~2u);
-	touch_wr(touch_se, SPI_DELAY_COUNTERS, 0u);
-	touch_wr(touch_se, GENI_TX_PACKING_CFG0, 0x0007f8feu);
-	touch_wr(touch_se, GENI_TX_PACKING_CFG1, 0x000ffefeu);
-	touch_wr(touch_se, GENI_RX_PACKING_CFG0, 0x0007f8feu);
-	touch_wr(touch_se, GENI_RX_PACKING_CFG1, 0x000ffefeu);
-	touch_wr(touch_se, GENI_BYTE_GRAN, 0u);
-	touch_wr(touch_se, SPI_WORD_LEN, 8u - 4u);
+	TW(SPI_LOOPBACK, 0u);
+	TW(SPI_DEMUX_SEL, 0u);
+	TW(SPI_CPHA, 0u);
+	TW(SPI_CPOL, 0u);
+	TW(SPI_DEMUX_OUTPUT_INV, 0u);
+	TW(SPI_TRANS_CFG, touch_rd(touch_se, SPI_TRANS_CFG) & ~2u);
+	TW(SPI_DELAY_COUNTERS, 0u);
+	TW(GENI_TX_PACKING_CFG0, 0x0007f8feu);
+	TW(GENI_TX_PACKING_CFG1, 0x000ffefeu);
+	TW(GENI_RX_PACKING_CFG0, 0x0007f8feu);
+	TW(GENI_RX_PACKING_CFG1, 0x000ffefeu);
+	TW(GENI_BYTE_GRAN, 0u);
+	TW(SPI_WORD_LEN, 8u - 4u);
 
 	/* Clock divider: 19.2 MHz / 2 = 9.6 MHz or / 4 = 4.8 MHz */
-	touch_wr(touch_se, GENI_CLK_SEL, 0u);
-	touch_wr(touch_se, GENI_SER_M_CLK_CFG, (2u << 4) | 1u);
+	TW(GENI_CLK_SEL, 0u);
+	TW(GENI_SER_M_CLK_CFG, (2u << 4) | 1u);
+#undef TW
 
+	printf("MIAMI TOUCH: GENI SPI configured\n");
 	return true;
 }
 
