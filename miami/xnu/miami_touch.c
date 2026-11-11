@@ -549,9 +549,9 @@ touch_thread(void *arg, wait_result_t result)
 						uint32_t rx = goodix_le16(t + 2);
 						uint32_t ry = goodix_le16(t + 4);
 
-						/* Map coordinates to 1080x2400 */
-						int x = (int)(rx > 10800 ? 1079 : (rx * 1080 / 10800));
-						int y = (int)(ry > 24000 ? 2399 : (ry * 2400 / 24000));
+						/* Map coordinates to 1080x2400 (stock panel max: 8640 x 19200) */
+						int x = (int)(rx > 8640 ? 1079 : (rx * 1080 / 8640));
+						int y = (int)(ry > 19200 ? 2399 : (ry * 2400 / 19200));
 
 						seen[id] = true;
 						touch_state[id].down = true;
