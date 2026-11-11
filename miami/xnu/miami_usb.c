@@ -725,7 +725,7 @@ ud_thread(void *arg __unused, wait_result_t wr __unused)
 			for (uint32_t done = 0; done < count; done += 4) {
 				uint32_t ev = *(volatile uint32_t *)(ud.dma + UD_EVT + ud.evt_pos);
 				ud.evt_pos = (ud.evt_pos + 4) % UD_EVT_SIZE;
-				if (ud.events++ < 200) {
+				if (ud.events++ < 10) {
 					printf("MIAMI USB: event 0x%08x\n", ev);
 				}
 				ud_event(ev);

@@ -244,10 +244,10 @@ touch_clocks_init(void)
 static void
 touch_pins_init(void)
 {
-	int cfg_pins = 0;
-	(void)PE_parse_boot_argn("touchpins", &cfg_pins, sizeof(cfg_pins));
-	if (!cfg_pins) {
-		printf("MIAMI TOUCH: skipping TLMM pin config (pins preset by ABL)\n");
+	int rails = 1;
+	(void)PE_parse_boot_argn("touchrails", &rails, sizeof(rails));
+	if (!rails || !touch_tlmm) {
+		printf("MIAMI TOUCH: skipping Goodix rails/reset (touchrails=0 or tlmm null)\n");
 		return;
 	}
 
@@ -259,19 +259,18 @@ touch_pins_init(void)
 	touch_gpio_set(PIN_AVDD,  true);
 	delay(10000); /* 10ms for power rails to stabilize */
 
-	printf("MIAMI TOUCH: configuring TLMM pins (GPIO 0-3 SPI, 21 RST, 22 INT)...\n");
-	/* SPI pins: GPIO 0 (MOSI), 1 (MISO), 2 (CLK), 3 (CS) -> mux 1 (qup00), 10mA, no pull */
-	touch_gpio_cfg(PIN_MOSI, 1, 0, 4, false);
-	touch_gpio_cfg(PIN_MISO, 1, 0, 4, false);
-	touch_gpio_cfg(PIN_CLK,  1, 0, 4, false);
-	touch_gpio_cfg(PIN_CS,   1, 0, 4, false);
-
-	/* Reset pin: GPIO 21 (GPIO output, start High) */
+	printf("MIAMI TOUCH: pulsing Goodix reset (GPIO 21 Low 10ms, then High)...\n");
+	/* Reset pin: GPIO 21 (GPIO output, Low = reset, High = run) */
 	touch_gpio_cfg(PIN_RESET, 0, 3, 3, true);
+	touch_gpio_set(PIN_RESET, false);
+	delay(10000); /* 10ms in reset */
 	touch_gpio_set(PIN_RESET, true);
 
 	/* Interrupt pin: GPIO 22 (GPIO input, pull up) */
 	touch_gpio_cfg(PIN_INT, 0, 3, 3, false);
+
+	printf("MIAMI TOUCH: SPI pins 0-3 preset by ABL (skipping QUP TLMM writes)\n");
+	delay(120000); /* 120ms for Goodix MCU boot after reset release */
 }
 
 static void
@@ -583,14 +582,24 @@ touch_thread(void *arg, wait_result_t result)
 {
 	static uint8_t report[8 + 8 * GOODIX_MAX_TOUCHES + 2];
 	const uint8_t zero = 0;
+	uint32_t poll_count = 0;
 	(void)arg;
 	(void)result;
 
 	printf("MIAMI TOUCH: polling thread started (report_addr=%#x)\n", touch_report_addr);
 
 	for (;;) {
-		if (goodix_read(touch_report_addr, report, 8 + 8 * 2 + 2)) {
-			if (report[0] != 0) {
+		poll_count++;
+		bool ok = goodix_read(touch_report_addr, report, 8 + 8 * 2 + 2);
+
+		if (poll_count % 200 == 1) {
+			int int_pin = touch_gpio_get(PIN_INT);
+			printf("MIAMI TOUCH: poll #%u ok=%d rep[0..3]=%02x %02x %02x %02x int=%d\n",
+			    poll_count, ok ? 1 : 0, report[0], report[1], report[2], report[3], int_pin);
+		}
+
+		if (ok) {
+			if (report[0] != 0 && report[0] != 0xffu) {
 				/* Acknowledge event immediately */
 				goodix_write(touch_report_addr, &zero, 1u);
 
@@ -661,15 +670,15 @@ miami_touch_init(void)
 	printf("MIAMI TOUCH: initializing MMIO mapping...\n");
 	touch_se = ml_io_map(TOUCH_SE_PA, 0x4000);
 	touch_gcc = ml_io_map(TOUCH_GCC_PA, 0x1f0000);
-	touch_tlmm = 0; /* Keep 0 to avoid any accidental EL1 TLMM accesses */
+	touch_tlmm = ml_io_map(TOUCH_TLMM_PA, 0x100000);
 
-	if (!touch_se || !touch_gcc) {
-		printf("MIAMI TOUCH: MMIO mapping failed (se=%p gcc=%p)\n",
-		    (void *)touch_se, (void *)touch_gcc);
+	if (!touch_se || !touch_gcc || !touch_tlmm) {
+		printf("MIAMI TOUCH: MMIO mapping failed (se=%p gcc=%p tlmm=%p)\n",
+		    (void *)touch_se, (void *)touch_gcc, (void *)touch_tlmm);
 		return;
 	}
-	printf("MIAMI TOUCH: MMIO mapped (se=%p gcc=%p)\n",
-	    (void *)touch_se, (void *)touch_gcc);
+	printf("MIAMI TOUCH: MMIO mapped (se=%p gcc=%p tlmm=%p)\n",
+	    (void *)touch_se, (void *)touch_gcc, (void *)touch_tlmm);
 
 	touch_clocks_init();
 	touch_pins_init();
