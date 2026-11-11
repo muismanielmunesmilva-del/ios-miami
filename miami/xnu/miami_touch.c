@@ -402,10 +402,7 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 	touch_wr(touch_se, SPI_TX_TRANS_LEN, length);
 	touch_wr(touch_se, SPI_RX_TRANS_LEN, length);
 
-	printf("MIAMI TOUCH: xfer len=%u, writing M_CMD0...\n", length);
-	delay(10000);
 	touch_wr(touch_se, GENI_M_CMD0, SPI_FULL_DUPLEX);
-	printf("MIAMI TOUCH: M_CMD0 written, status=%#x\n", touch_rd(touch_se, GENI_M_IRQ_STATUS));
 
 	clock_interval_to_deadline(200, NSEC_PER_MSEC, &deadline);
 	while (mach_absolute_time() < deadline) {
@@ -602,11 +599,13 @@ touch_thread(void *arg, wait_result_t result)
 						touch_state[id].down = true;
 						touch_state[id].x = x;
 						touch_state[id].y = y;
+						printf("MIAMI TOUCH: [touch #%u] DOWN at (%d, %d)\n", id, x, y);
 						miami_hid_touch(id, 1, x, y);
 					}
 					for (uint32_t id = 0; id < GOODIX_MAX_TOUCHES; id++) {
 						if (touch_state[id].down && !seen[id]) {
 							touch_state[id].down = false;
+							printf("MIAMI TOUCH: [touch #%u] UP\n", id);
 							miami_hid_touch(id, 0, touch_state[id].x, touch_state[id].y);
 						}
 					}
