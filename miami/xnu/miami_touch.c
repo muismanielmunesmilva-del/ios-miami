@@ -122,7 +122,7 @@ void miami_touch_init(void);
 #define M_ERRORS             ((1u << 1) | (1u << 2) | (1u << 3) | (1u << 24) | (1u << 25) | (1u << 28) | (1u << 29))
 #define SPI_TX_ONLY          1u
 #define SPI_RX_ONLY          2u
-#define SPI_TX_RX            7u
+#define SPI_TX_RX            3u
 #define SPI_FULL_DUPLEX      (SPI_TX_RX << 27)
 
 /* Goodix Berlin protocol registers */
@@ -269,7 +269,12 @@ touch_pins_init(void)
 	/* Interrupt pin: GPIO 22 (GPIO input, pull up) */
 	touch_gpio_cfg(PIN_INT, 0, 3, 3, false);
 
-	printf("MIAMI TOUCH: SPI pins 0-3 preset by ABL (skipping QUP TLMM writes)\n");
+	printf("MIAMI TOUCH: configuring TLMM SPI0 pins (GPIO 0-3 mux 1 qup00)...\n");
+	touch_gpio_cfg(PIN_MOSI, 1, 0, 4, false);
+	touch_gpio_cfg(PIN_MISO, 1, 0, 4, false);
+	touch_gpio_cfg(PIN_CLK,  1, 0, 4, false);
+	touch_gpio_cfg(PIN_CS,   1, 0, 4, false);
+
 	delay(120000); /* 120ms for Goodix MCU boot after reset release */
 }
 
@@ -378,9 +383,9 @@ geni_spi_init(void)
 	TW(GENI_BYTE_GRAN, 0u);
 	TW(SPI_WORD_LEN, 8u - 4u);
 
-	/* Clock divider: 19.2 MHz / 2 = 9.6 MHz or / 4 = 4.8 MHz */
+	/* Clock divider: 19.2 MHz / 10 = 1.92 MHz (stable for Goodix Berlin SPI) */
 	TW(GENI_CLK_SEL, 0u);
-	TW(GENI_SER_M_CLK_CFG, (2u << 4) | 1u);
+	TW(GENI_SER_M_CLK_CFG, (10u << 4) | 1u);
 #undef TW
 
 	printf("MIAMI TOUCH: GENI SPI configured\n");
@@ -554,21 +559,30 @@ goodix_probe(void)
 		printf("MIAMI TOUCH: read FW_VERSION failed (continuing with report_addr %#x)\n", touch_report_addr);
 	}
 
-	printf("MIAMI TOUCH: reading IC_INFO from 0x%x...\n", GOODIX_IC_INFO);
-	if (goodix_read(GOODIX_IC_INFO, info, 256)) {
+	printf("MIAMI TOUCH: reading IC_INFO...\n");
+	if (goodix_read(GOODIX_IC_INFO, info, 2)) {
 		uint32_t length = goodix_le16(info);
-		printf("MIAMI TOUCH: IC_INFO len=%u [%02x %02x %02x %02x %02x %02x %02x %02x]\n",
-		    length, info[0], info[1], info[2], info[3], info[4], info[5], info[6], info[7]);
-		if (length >= 40 && length <= 256) {
+		printf("MIAMI TOUCH: IC_INFO len=%u [%02x %02x]\n", length, info[0], info[1]);
+		if (length >= 40 && length < GOODIX_MAX_READ && goodix_read(GOODIX_IC_INFO, info, length)) {
+			if (goodix_checksum_ok(info, length)) {
+				printf("MIAMI TOUCH: IC_INFO checksum OK\n");
+			}
 			uint32_t offset = 2u + 16u + 10u + 4u;
 			for (int i = 0; i < 5 && offset < length; i++) {
 				offset += 1u + 2u * info[offset];
 			}
-			if (offset + 36u + 4u <= length) {
-				uint32_t dyn_addr = goodix_le32(info + offset + 36u);
+			if (offset + 48u <= length) {
+				uint32_t dyn_addr = goodix_le32(info + offset + 44u);
 				printf("MIAMI TOUCH: parsed touch_data_addr=%#x (offset=%u)\n", dyn_addr, offset);
 				if (dyn_addr >= 0x10000u && dyn_addr <= 0x20000u) {
 					touch_report_addr = dyn_addr;
+				}
+			}
+			if (offset + 122u + 20u <= length) {
+				uint16_t x = goodix_le16(info + offset + 122u + 16u);
+				uint16_t y = goodix_le16(info + offset + 122u + 18u);
+				if (x && y) {
+					printf("MIAMI TOUCH: panel max: %u x %u\n", x, y);
 				}
 			}
 			/* Scan search through info if offset parsing was off */
@@ -607,7 +621,7 @@ touch_thread(void *arg, wait_result_t result)
 		int int_pin = touch_gpio_get(PIN_INT);
 		bool ok = goodix_read(touch_report_addr, report, 8 + 8 * 2 + 2);
 
-		if (poll_count % 200 == 1) {
+		if (poll_count % 100 == 1) {
 			printf("MIAMI TOUCH: poll #%u addr=%#x ok=%d rep[0..3]=%02x %02x %02x %02x int=%d\n",
 			    poll_count, touch_report_addr, ok ? 1 : 0, report[0], report[1], report[2], report[3], int_pin);
 		}
