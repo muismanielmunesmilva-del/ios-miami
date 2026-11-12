@@ -126,6 +126,7 @@ void miami_touch_init(void);
 /* Goodix Berlin protocol registers */
 #define GOODIX_FW_VERSION    0x10014u
 #define GOODIX_IC_INFO       0x10070u
+#define GOODIX_BOOTOPTION    0x10000u
 #define GOODIX_MAX_READ      512u
 #define GOODIX_MAX_TOUCHES   10u
 #define GOODIX_STATUS_TOUCH  0x80u
@@ -136,6 +137,10 @@ static bool touch_started;
 static uint32_t touch_fifo_depth = 16;
 static uint32_t touch_report_addr = 0x10200u;
 static bool touch_report_verified;
+static bool touch_confirmed;
+static bool touch_version_valid;
+static uint8_t touch_version_first[8];
+static uint32_t touch_info_length;
 static uint32_t touch_max_x = 1080;
 static uint32_t touch_max_y = 2400;
 static int touch_sleep_chan;
@@ -177,10 +182,6 @@ touch_gpio_cfg(unsigned pin, unsigned mux, unsigned pull, unsigned drive, bool o
 {
 	uint32_t off = TLMM_GPIO_CFG(pin);
 	uint32_t cfg = touch_rd(touch_tlmm, off);
-	if (out) {
-		touch_wr(touch_tlmm, TLMM_GPIO_IO(pin),
-		    touch_rd(touch_tlmm, TLMM_GPIO_IO(pin)) | 2u);
-	}
 	cfg &= ~0x3ffu;
 	cfg |= (mux << 2) | pull | (drive << 6) | (out ? 0x200u : 0u);
 	touch_wr(touch_tlmm, off, cfg);
@@ -251,19 +252,19 @@ touch_pins_init(void)
 		return;
 	}
 
-	printf("MIAMI TOUCH: powering Goodix rails (GPIO 135 IOVDD, GPIO 136 AVDD)...\n");
-	/* Power rails: GPIO 135 (IOVDD 1.8V), GPIO 136 (AVDD 3.0V) -> GPIO output HIGH */
-	touch_gpio_cfg(PIN_IOVDD, 0, 0, 3, true);
-	touch_gpio_set(PIN_IOVDD, true);
-	touch_gpio_cfg(PIN_AVDD,  0, 0, 3, true);
-	touch_gpio_set(PIN_AVDD,  true);
-	delay(10000); /* 10ms for power rails to stabilize */
-
-	printf("MIAMI TOUCH: pulsing Goodix reset (GPIO 21 Low 10ms, then High)...\n");
-	/* Reset pin: GPIO 21 (GPIO output, Low = reset, High = run) */
-	touch_gpio_cfg(PIN_RESET, 0, 3, 3, true);
+	/* Follow Goodix power-on order: hold reset, then VDDIO and AVDD. Set
+	 * each output latch before enabling output to avoid a high-going glitch. */
+	printf("MIAMI TOUCH: holding reset and enabling Goodix rails...\n");
 	touch_gpio_set(PIN_RESET, false);
-	delay(10000); /* 10ms in reset */
+	touch_gpio_cfg(PIN_RESET, 0, 3, 3, true);
+	touch_gpio_set(PIN_IOVDD, true);
+	touch_gpio_cfg(PIN_IOVDD, 0, 0, 3, true);
+	delay(3000);
+	touch_gpio_set(PIN_AVDD,  true);
+	touch_gpio_cfg(PIN_AVDD,  0, 0, 3, true);
+	delay(15000);
+
+	printf("MIAMI TOUCH: releasing Goodix reset (GPIO 21 high)...\n");
 	touch_gpio_set(PIN_RESET, true);
 
 	/* Interrupt pin: GPIO 22 (GPIO input, pull up) */
@@ -535,6 +536,29 @@ goodix_le32(const uint8_t *p)
 	return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
+/* Goodix Berlin-D connectivity check: a transient boot-option register,
+ * not a firmware update. A completed SPI command is not sufficient: require
+ * an exact readback, bounded to the three attempts used by the driver. */
+static bool
+goodix_confirm(void)
+{
+	const uint8_t expected[8] = {0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa};
+	uint8_t actual[8];
+	for (unsigned attempt = 0; attempt < 3; attempt++) {
+		memset(actual, 0, sizeof(actual));
+		bool write_ok = goodix_write(GOODIX_BOOTOPTION, expected, sizeof(expected));
+		bool read_ok = write_ok && goodix_read(GOODIX_BOOTOPTION, actual, sizeof(actual));
+		if (read_ok && memcmp(expected, actual, sizeof(actual)) == 0) {
+			printf("MIAMI TOUCH: Goodix confirm readback OK\n");
+			return true;
+		}
+		printf("MIAMI TOUCH: confirm %u write=%d read=%d data=%02x %02x %02x %02x\n",
+		    attempt + 1, write_ok, read_ok, actual[0], actual[1], actual[2], actual[3]);
+		delay(5000);
+	}
+	return false;
+}
+
 static bool
 goodix_probe(void)
 {
@@ -553,9 +577,13 @@ goodix_probe(void)
 
 	/* Default report address for GT9916S / Berlin-D */
 	touch_report_addr = 0x10200u;
+	touch_confirmed = goodix_confirm();
+	if (touch_confirmed) delay(100000);
 
 	printf("MIAMI TOUCH: probing Goodix FW version via SPI0...\n");
 	if (goodix_read(GOODIX_FW_VERSION, version, sizeof(version))) {
+		memcpy(touch_version_first, version, sizeof(touch_version_first));
+		touch_version_valid = goodix_checksum_ok(version, sizeof(version));
 		printf("MIAMI TOUCH: FW_VERSION raw: %02x %02x %02x %02x %02x %02x %02x %02x\n",
 		    version[0], version[1], version[2], version[3],
 		    version[4], version[5], version[6], version[7]);
@@ -567,7 +595,7 @@ goodix_probe(void)
 		ascii[16] = '\0';
 		printf("MIAMI TOUCH: FW_VERSION ascii: \"%s\"\n", ascii);
 
-		if (goodix_checksum_ok(version, sizeof(version))) {
+		if (touch_version_valid) {
 			printf("MIAMI TOUCH: chip \"%.6s\", firmware \"%.8s\" %02x.%02x.%02x.%02x, sensor %u\n",
 			    (const char *)version, (const char *)version + 10,
 			    version[18], version[19], version[20], version[21], version[23]);
@@ -581,6 +609,7 @@ goodix_probe(void)
 	printf("MIAMI TOUCH: reading IC_INFO...\n");
 	if (goodix_read(GOODIX_IC_INFO, info, 2)) {
 		uint32_t length = goodix_le16(info);
+		touch_info_length = length;
 		printf("MIAMI TOUCH: IC_INFO len=%u [%02x %02x]\n", length, info[0], info[1]);
 		if (length >= 40 && length < GOODIX_MAX_READ && goodix_read(GOODIX_IC_INFO, info, length) && goodix_checksum_ok(info, length)) {
 			printf("MIAMI TOUCH: IC_INFO checksum OK\n");
@@ -637,7 +666,9 @@ touch_thread(void *arg, wait_result_t result)
 		}
 
 		if (!touch_report_verified && poll_count % 100 == 1)
-			printf("MIAMI TOUCH: report address unverified; diagnostic reads only\n");
+			printf("MIAMI TOUCH: unverified confirm=%d fwvalid=%d fw=%02x%02x%02x%02x info_len=%u; diagnostic reads only\n",
+			    touch_confirmed, touch_version_valid, touch_version_first[0], touch_version_first[1],
+			    touch_version_first[2], touch_version_first[3], touch_info_length);
 		if (ok && touch_report_verified) {
 			if (report[0] != 0 && report[0] != 0xffu) {
 				if (!goodix_checksum_valid(report, 8u)) {
