@@ -112,6 +112,34 @@ _start:
     bl write_all
     b hfs_probe
 amfi_failed:
+    /* Print the unmasked status on stage 2 without changing the policy. */
+    cmp x22, #'2'
+    b.ne amfi_restore_stack
+    ldr w10, [sp]
+    add x11, sp, #496
+    adr x12, hex_digits
+    mov x13, #0
+amfi_hex_loop:
+    mov x14, #28
+    sub x14, x14, x13, lsl #2
+    lsr w15, w10, w14
+    and w15, w15, #15
+    ldrb w15, [x12, x15]
+    strb w15, [x11, x13]
+    add x13, x13, #1
+    cmp x13, #8
+    b.ne amfi_hex_loop
+    adr x1, amfi_flags
+    adr x2, amfi_flags_end
+    sub x2, x2, x1
+    bl write_all
+    add x1, sp, #496
+    mov x2, #8
+    bl write_all
+    adr x1, amfi_stage_newline
+    mov x2, #1
+    bl write_all
+amfi_restore_stack:
     add sp, sp, #512
 amfi_no_sp_failed:
     adr x1, amfi_stage
@@ -436,6 +464,11 @@ amfi_stage:
 amfi_stage_end:
 amfi_stage_newline:
     .ascii "\n"
+amfi_flags:
+    .ascii "MIAMI AMFI csflags=0x"
+amfi_flags_end:
+hex_digits:
+    .ascii "0123456789abcdef"
 hfs_ok:
     .ascii "MIAMI HFS+: /usr/lib/dyld and /etc/miami-root verified\n"
 hfs_ok_end:
