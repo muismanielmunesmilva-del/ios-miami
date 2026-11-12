@@ -14,7 +14,7 @@ def test_touch():
     content = touch_c.read_text(encoding='utf-8')
     assert 'TOUCH_SE_PA          0x04a80000u' in content, "SM6375 GENI SPI0 base invalid"
     assert 'TOUCH_GCC_PA         0x01400000u' in content, "SM6375 GCC base invalid"
-    assert 'TOUCH_TLMM_PA        0x00400000u' in content, "SM6375 TLMM base invalid"
+    assert 'TOUCH_TLMM_PA        0x00500000u' in content, "SM6375 GPIO register base invalid"
     assert 'GOODIX_FW_VERSION    0x10014u' in content, "Goodix Berlin FW version register invalid"
     assert 'GOODIX_IC_INFO       0x10070u' in content, "Goodix Berlin IC info register invalid"
     assert 'void miami_touch_init(void)' in content, "miami_touch_init declaration missing"

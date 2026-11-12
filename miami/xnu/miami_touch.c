@@ -7,7 +7,7 @@
  * - Clock Controller (GCC): 0x01400000 (0x1f0000)
  *     GCC vote register: 0x7900c (APCS branch clock enable vote: bits 6..10)
  *     SE0 RCG:           0x1f148 (cmd_rcgr), 0x1f14c (cfg_rcgr = 1 for TCXO 19.2MHz)
- * - TLMM Pin Controller: 0x00400000 (0x100000)
+ * - TLMM block: 0x00400000; GPIO registers start at block + 0x100000
  *     GPIO 0, 1: qup00 mux 2; GPIO 2, 3: qup00 mux 1 (10mA, no pull)
  *     GPIO 21: RESET_N (GPIO 21, active low, 8mA, pull-up)
  *     GPIO 22: INT_N   (GPIO 22, active low, 8mA, pull-up)
@@ -39,7 +39,8 @@ void miami_touch_init(void);
 
 #define TOUCH_SE_PA          0x04a80000u
 #define TOUCH_GCC_PA         0x01400000u
-#define TOUCH_TLMM_PA        0x00400000u
+/* Motorola blair-pinctrl uses REG_BASE 0x100000 within the 0x400000 TLMM block. */
+#define TOUCH_TLMM_PA        0x00500000u
 
 /*
  * GCC Registers for QUPv3 WRAP0 and SE0 (from Blair gcc-blair.c):
