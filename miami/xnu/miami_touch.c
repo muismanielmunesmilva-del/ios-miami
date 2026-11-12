@@ -8,10 +8,7 @@
  *     GCC vote register: 0x7900c (APCS branch clock enable vote: bits 6..10)
  *     SE0 RCG:           0x1f148 (cmd_rcgr), 0x1f14c (cfg_rcgr = 1 for TCXO 19.2MHz)
  * - TLMM Pin Controller: 0x00400000 (0x100000)
- *     GPIO 0: MOSI (qup00, mux 1, 10mA, no pull)
- *     GPIO 1: MISO (qup00, mux 1, 10mA, no pull)
- *     GPIO 2: CLK  (qup00, mux 1, 10mA, no pull)
- *     GPIO 3: CS_N (qup00, mux 1, 10mA, no pull)
+ *     GPIO 0, 1: qup00 mux 2; GPIO 2, 3: qup00 mux 1 (10mA, no pull)
  *     GPIO 21: RESET_N (GPIO 21, active low, 8mA, pull-up)
  *     GPIO 22: INT_N   (GPIO 22, active low, 8mA, pull-up)
  *     GPIO 135: IOVDD  (GPIO 135, 1.8V digital rail enable, GPIO out, default HIGH)
@@ -246,6 +243,7 @@ static void
 touch_pins_init(void)
 {
 	int rails = 1;
+	int mux_spi = 0;
 	(void)PE_parse_boot_argn("touchrails", &rails, sizeof(rails));
 	if (!rails || !touch_tlmm) {
 		printf("MIAMI TOUCH: skipping Goodix rails/reset (touchrails=0 or tlmm null)\n");
@@ -270,7 +268,23 @@ touch_pins_init(void)
 	/* Interrupt pin: GPIO 22 (GPIO input, pull up) */
 	touch_gpio_cfg(PIN_INT, 0, 3, 3, false);
 
-	printf("MIAMI TOUCH: SPI pin mux not configured here; bootloader state unknown\n");
+	/* pinctrl-sm6375: GPIO0/1 qup00 is function 2, GPIO2/3 function 1.
+	 * Opt-in because an earlier incorrect pin configuration coincided with
+	 * an SError. Preserve OE and unrelated fields, as Linux pinctrl does. */
+	(void)PE_parse_boot_argn("touchmux", &mux_spi, sizeof(mux_spi));
+	if (mux_spi) {
+		for (unsigned pin = 0; pin < 4; pin++) {
+			unsigned mux = pin < 2 ? 2u : 1u;
+			printf("MIAMI TOUCH: configuring SPI GPIO%u mux=%u\n", pin, mux);
+			uint32_t cfg = touch_rd(touch_tlmm, TLMM_GPIO_CFG(pin));
+			cfg = (cfg & ~0x1ffu) | (mux << 2) | (4u << 6);
+			touch_wr(touch_tlmm, TLMM_GPIO_CFG(pin), cfg);
+			printf("MIAMI TOUCH: SPI GPIO%u config=%#x\n", pin,
+			    touch_rd(touch_tlmm, TLMM_GPIO_CFG(pin)));
+		}
+	} else {
+		printf("MIAMI TOUCH: SPI mux unchanged (touchmux=0)\n");
+	}
 	delay(120000); /* 120ms for Goodix MCU boot after reset release */
 }
 
