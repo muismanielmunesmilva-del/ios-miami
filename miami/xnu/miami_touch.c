@@ -269,12 +269,7 @@ touch_pins_init(void)
 	/* Interrupt pin: GPIO 22 (GPIO input, pull up) */
 	touch_gpio_cfg(PIN_INT, 0, 3, 3, false);
 
-	printf("MIAMI TOUCH: configuring TLMM SPI0 pins (GPIO 0-3 mux 1 qup00)...\n");
-	touch_gpio_cfg(PIN_MOSI, 1, 0, 4, false);
-	touch_gpio_cfg(PIN_MISO, 1, 0, 4, false);
-	touch_gpio_cfg(PIN_CLK,  1, 0, 4, false);
-	touch_gpio_cfg(PIN_CS,   1, 0, 4, false);
-
+	printf("MIAMI TOUCH: SPI pins 0-3 handled by ABL/TZ (skipping TLMM to prevent SError)\n");
 	delay(120000); /* 120ms for Goodix MCU boot after reset release */
 }
 
