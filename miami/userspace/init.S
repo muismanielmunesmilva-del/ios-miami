@@ -44,6 +44,10 @@ _start:
      * the embedded XML entitlements blob (magic 0xfade7171).
      */
     sub sp, sp, #512
+    /* Failure stage survives syscalls in callee-saved x22: 1=status syscall,
+     * 2=status flags, 3=entitlement syscall, 4=blob header/length,
+     * 5=Sandbox op 0, 6=Sandbox op 4. */
+    mov x22, #'1'
     str wzr, [sp]
     mov x0, #0
     mov x1, #0
@@ -52,12 +56,14 @@ _start:
     mov x16, #SYS_csops
     svc #0x80
     b.cs amfi_failed
+    mov x22, #'2'
     ldr w9, [sp]
     mov w10, #0x0003
     movk w10, #0x2400, lsl #16
     and w9, w9, w10
     cmp w9, w10
     b.ne amfi_failed
+    mov x22, #'3'
     stp xzr, xzr, [sp]
     mov x0, #0
     mov x1, #7
@@ -66,6 +72,7 @@ _start:
     mov x16, #SYS_csops
     svc #0x80
     b.cs amfi_failed
+    mov x22, #'4'
     ldr w9, [sp]
     rev w9, w9
     mov w10, #0x7171
@@ -82,6 +89,7 @@ _start:
     /* Verify built-in permissive Sandbox MAC policy (0050):
      * __mac_syscall("Sandbox", 0, NULL) == 0 and op 4 == ENOENT (2).
      */
+    mov x22, #'5'
     adr x0, sandbox_policy
     mov x1, #0
     mov x2, #0
@@ -89,6 +97,7 @@ _start:
     svc #0x80
     b.cs amfi_no_sp_failed
     cbnz x0, amfi_no_sp_failed
+    mov x22, #'6'
     adr x0, sandbox_policy
     mov x1, #4
     mov x2, #0
@@ -105,6 +114,19 @@ _start:
 amfi_failed:
     add sp, sp, #512
 amfi_no_sp_failed:
+    adr x1, amfi_stage
+    adr x2, amfi_stage_end
+    sub x2, x2, x1
+    bl write_all
+    sub sp, sp, #16
+    strb w22, [sp]
+    mov x1, sp
+    mov x2, #1
+    bl write_all
+    add sp, sp, #16
+    adr x1, amfi_stage_newline
+    mov x2, #1
+    bl write_all
     adr x1, amfi_error
     adr x2, amfi_error_end
     sub x2, x2, x1
@@ -409,6 +431,11 @@ amfi_ok_end:
 amfi_error:
     .ascii "MIAMI AMFI ERROR: csops, entitlements or Sandbox check failed\n"
 amfi_error_end:
+amfi_stage:
+    .ascii "MIAMI AMFI failure stage: "
+amfi_stage_end:
+amfi_stage_newline:
+    .ascii "\n"
 hfs_ok:
     .ascii "MIAMI HFS+: /usr/lib/dyld and /etc/miami-root verified\n"
 hfs_ok_end:
