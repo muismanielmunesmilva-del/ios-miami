@@ -39,9 +39,10 @@ _start:
     sub x2, x2, x1
     bl write_all
     /* Verify built-in AMFI policy: CS_OPS_STATUS (0) must report
-     * CS_VALID (0x1) | CS_ADHOC (0x2) | CS_PLATFORM_BINARY (0x04000000) |
-     * CS_SIGNED (0x20000000), and CS_OPS_ENTITLEMENTS_BLOB (7) must return
-     * the embedded XML entitlements blob (magic 0xfade7171).
+     * CS_VALID (0x1) | CS_PLATFORM_BINARY (0x04000000) | CS_SIGNED
+     * (0x20000000). XNU 8796 kern_exec.c does not propagate CS_ADHOC from
+     * the CodeDirectory into ip_csflags; build.py verifies it in the file.
+     * CS_OPS_ENTITLEMENTS_BLOB (7) must return the embedded XML blob.
      */
     sub sp, sp, #512
     /* Failure stage survives syscalls in callee-saved x22: 1=status syscall,
@@ -58,7 +59,7 @@ _start:
     b.cs amfi_failed
     mov x22, #'2'
     ldr w9, [sp]
-    mov w10, #0x0003
+    mov w10, #0x0001
     movk w10, #0x2400, lsl #16
     and w9, w9, w10
     cmp w9, w10
