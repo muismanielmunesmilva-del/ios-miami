@@ -27,15 +27,21 @@ prefix = r'''
 #define SPI_FRAGMENTATION (1u << 2)
 #define NSEC_PER_MSEC 1000000
 static unsigned touch_se, touch_fifo_depth=16, txwords, cmd, rxlen_writes, calls, drained;
+static unsigned target_words=2, early_drains, status_reads, recovered;
+static bool late_error;
 static void touch_wr(unsigned b,unsigned r,unsigned v) {
     (void)b; if(r==GENI_M_CMD0) cmd=v; if(r==GENI_TX_FIFO) txwords++;
     if(r==SPI_RX_TRANS_LEN) rxlen_writes++;
 }
 static unsigned touch_rd(unsigned b,unsigned r) {
-    (void)b; if(r==GENI_M_IRQ_STATUS) return txwords>=2 ? M_CMD_DONE : 0; return 0;
+    (void)b; if(r==GENI_M_IRQ_STATUS && txwords>=target_words) {
+        status_reads++;
+        return M_CMD_DONE | ((late_error && status_reads>1) ? M_ERRORS : 0);
+    } return 0;
 }
 static void geni_drain(uint8_t *p,unsigned n,unsigned *v) {
-    calls++; if(txwords>=2 && !drained) {
+    calls++; if(txwords && txwords<target_words) early_drains++;
+    if(txwords>=target_words && !drained) {
         for(unsigned i=0;i<n;i++) p[i]=(uint8_t)i;
         *v=n; drained=1;
     }
@@ -44,7 +50,7 @@ static int PE_parse_boot_argn(const char *s,void *p,unsigned n) {
     (void)s; (void)p; (void)n; return 0;
 }
 static void delay(int n) { (void)n; }
-static void geni_recover(void) { assert(0); }
+static void geni_recover(void) { recovered++; }
 static void clock_interval_to_deadline(unsigned a,unsigned b,uint64_t *d) {
     (void)a; (void)b; *d=100;
 }
@@ -58,6 +64,13 @@ int main(void) {
     txwords=cmd=rxlen_writes=calls=drained=0;
     assert(geni_transfer(tx,rx,8));
     assert(cmd==(SPI_FULL_DUPLEX|SPI_FRAGMENTATION) && rxlen_writes==1 && calls>0 && rx[7]==7);
+    uint8_t long_tx[98]={0}, long_rx[98]={0};
+    txwords=cmd=rxlen_writes=calls=drained=status_reads=early_drains=0; target_words=25;
+    assert(geni_transfer(long_tx,long_rx,98));
+    assert(early_drains>0 && long_rx[97]==97);
+    txwords=cmd=rxlen_writes=calls=drained=status_reads=early_drains=0;
+    target_words=2; late_error=true;
+    assert(!geni_transfer(tx,rx,8) && recovered==1);
     return 0;
 }
 '''

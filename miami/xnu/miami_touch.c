@@ -459,6 +459,9 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 				word |= (uint32_t)(tx ? tx[sent] : 0u) << (8 * j);
 			}
 			touch_wr(touch_se, GENI_TX_FIFO, word);
+			/* Long full-duplex transactions can produce RX data while we
+			 * are still filling TX. Service RX between FIFO words. */
+			if (rx) geni_drain(rx, length, &received);
 		}
 		status = touch_rd(touch_se, GENI_M_IRQ_STATUS);
 		if (rx) geni_drain(rx, length, &received);
@@ -468,6 +471,11 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 		}
 		if (status & M_CMD_DONE) {
 			if (rx) geni_drain(rx, length, &received);
+			status |= touch_rd(touch_se, GENI_M_IRQ_STATUS);
+			if (status & M_ERRORS) {
+				printf("MIAMI TOUCH: xfer completion error status=%#x\n", status);
+				break;
+			}
 			touch_wr(touch_se, GENI_M_IRQ_CLEAR, status);
 			if (sent == length && (!rx || received == length)) {
 				return true;
