@@ -72,6 +72,8 @@ jobs:
           python3 miami/userspace/inspect_ipsw.py "$RUNNER_TEMP/ios-manifest/BuildManifest.plist"
       - name: Validate Mach-O CodeDirectory page verifier
         run: python3 miami/tests/check-codesign-pages.py
+      - name: Validate Apple-compatible partial HFS root
+        run: python3 miami/tests/check-apple-bootstrap.py
       - name: Validate Miami UFS driver invariants
         run: python3 miami/tests/check-ufs.py
       - name: Validate Miami Display, HID, Keys, USB, and Touch subsystems

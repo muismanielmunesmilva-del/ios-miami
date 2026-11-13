@@ -6,7 +6,7 @@ from pathlib import Path
 import struct
 
 
-def inspect(data):
+def inspect(data, allow_external=False):
     if len(data) < 32:
         raise ValueError('Short Mach-O')
     magic, cpu, subtype, _, count, commands, _, _ = struct.unpack_from('<8I', data)
@@ -33,6 +33,7 @@ def inspect(data):
     if magic != 0xfade0cc0 or total > length or total < 12 or entries > 100 or 12 + entries * 8 > total:
         raise ValueError('Invalid signature superblob')
     directories = []
+    external_slots = set()
     blobs = {}
     for index in range(entries):
         slot, rel = struct.unpack_from('>II', data, start + 12 + index * 8)
@@ -58,6 +59,7 @@ def inspect(data):
                 hashoff < special * hashsize or hashoff + slots * hashsize > size or
                 hashsize > hashlib.new(algorithm).digest_size):
             raise ValueError('Unsupported or malformed CodeDirectory')
+        unverified = 0
         for sp in range(1, special + 1):
             expected = bytes(cd[hashoff - sp * hashsize:hashoff - (sp - 1) * hashsize])
             if sp in blobs:
@@ -65,18 +67,23 @@ def inspect(data):
                 if actual != expected:
                     raise ValueError(f'CodeDirectory special slot -{sp} hash mismatch')
             elif any(expected):
-                raise ValueError(f'Missing blob for non-zero special slot -{sp}')
+                if not allow_external or sp not in (1, 3):
+                    raise ValueError(f'Missing blob for non-zero special slot -{sp}')
+                external_slots.add(sp)
+                unverified += 1
         for page in range(slots):
             chunk = data[page * (1 << shift):min(limit, (page + 1) * (1 << shift))]
             actual = hashlib.new(algorithm, chunk).digest()[:hashsize]
             if actual != cd[hashoff + page * hashsize:hashoff + (page + 1) * hashsize]:
                 raise ValueError('CodeDirectory page hash mismatch')
         directories.append({'slot':slot, 'hash_type':hashtype, 'page_bytes':1 << shift,
-                            'pages_verified':slots, 'special_slots_verified':special, 'code_limit':limit})
+                            'pages_verified':slots, 'special_slots_verified':special - unverified,
+                            'special_slots_total':special, 'code_limit':limit})
     if not directories:
         raise ValueError('No supported CodeDirectory')
     return {'sha256':hashlib.sha256(data).hexdigest(), 'code_directories':directories,
-            'page_hashes':'PASS', 'cms_or_trust_chain_verified':False}
+            'page_hashes':'PASS', 'external_special_slots_unverified':sorted(external_slots),
+            'cms_or_trust_chain_verified':False}
 
 
 if __name__ == '__main__':

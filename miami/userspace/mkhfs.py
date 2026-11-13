@@ -187,11 +187,40 @@ def btree_header_node(tree_depth, root_node, leaf_records, first_leaf, last_leaf
     return btree_node(1, 0, [hdr, user_data, bytes(map_rec)])
 
 
-def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
-    launchd_bytes = add_dylinker_command(launchd_bytes)
-    init_info = build_init.validate(launchd_bytes)
-    dyld_bytes = build_dyld()
-    validate_dyld(dyld_bytes)
+def inspect_apple_binary(data, kind):
+    if len(data) < 32 or struct.unpack_from('<I', data, 12)[0] != kind:
+        raise ValueError('Unexpected Apple Mach-O type')
+    info = cs_verifier.inspect(data, allow_external=True)
+    info['type'] = 'apple-macho'
+    if kind == 2:
+        ncmds = struct.unpack_from('<I', data, 16)[0]
+        off = 32
+        found = False
+        for _ in range(ncmds):
+            cmd, size = struct.unpack_from('<II', data, off)
+            if cmd == 0xe:
+                nameoff = struct.unpack_from('<I', data, off + 8)[0]
+                if nameoff >= size or data[off + nameoff:off + size].split(b'\0')[0] != b'/usr/lib/dyld':
+                    raise ValueError('Unexpected Apple dylinker path')
+                found = True
+            off += size
+        if not found:
+            raise ValueError('Apple launchd has no dylinker')
+        info['dylinker'] = '/usr/lib/dyld'
+    return info
+
+
+def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES, apple_dyld=None):
+    real = apple_dyld is not None
+    if real:
+        init_info = inspect_apple_binary(launchd_bytes, 2)
+        dyld_bytes = apple_dyld
+        inspect_apple_binary(dyld_bytes, 7)
+    else:
+        launchd_bytes = add_dylinker_command(launchd_bytes)
+        init_info = build_init.validate(launchd_bytes)
+        dyld_bytes = build_dyld()
+        validate_dyld(dyld_bytes)
     launchd_blocks = (len(launchd_bytes) + BLOCK_SIZE - 1) // BLOCK_SIZE
     marker_blocks = (len(marker_bytes) + BLOCK_SIZE - 1) // BLOCK_SIZE
     dyld_blocks = (len(dyld_bytes) + BLOCK_SIZE - 1) // BLOCK_SIZE
@@ -199,9 +228,11 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
     marker_start = launchd_start + launchd_blocks
     dyld_start = marker_start + marker_blocks
     used_low_blocks = dyld_start + dyld_blocks
-    if used_low_blocks >= TOTAL_BLOCKS - 1:
-        raise ValueError('HFS+ root image contents exceed 32-block allocation')
-    free_blocks = (TOTAL_BLOCKS - 1) - used_low_blocks
+    total_blocks = ((used_low_blocks + 4) + 3) & ~3 if real else TOTAL_BLOCKS
+    image_bytes = total_blocks * BLOCK_SIZE
+    if used_low_blocks >= total_blocks - 1 or image_bytes > 64 * 1024 * 1024 or total_blocks > BLOCK_SIZE * 8:
+        raise ValueError('HFS+ root image contents exceed bounded allocation')
+    free_blocks = (total_blocks - 1) - used_low_blocks
 
     # Extents Overflow B-Tree (block 2): 1 header node, empty tree.
     extents_node0 = btree_header_node(
@@ -262,7 +293,7 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
 
     # Allocation Bitmap (block 1): mark blocks 0..used_low_blocks-1 and TOTAL_BLOCKS-1.
     bitmap = bytearray(BLOCK_SIZE)
-    for b in list(range(used_low_blocks)) + [TOTAL_BLOCKS - 1]:
+    for b in list(range(used_low_blocks)) + [total_blocks - 1]:
         bitmap[b // 8] |= 1 << (7 - (b % 8))
 
     # Volume Header (512 bytes at offset 1024 and alternate at IMAGE_BYTES - 1024).
@@ -270,7 +301,7 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
     struct.pack_into('>HH17IQ', vh, 0,
                      SIG_HFSPLUS, 4, ATTR_UNMOUNTED | ATTR_UNUSED_NODE_FIX,
                      0x4846532B, 0, 0, 0, 0, 0,
-                     3, 5, BLOCK_SIZE, TOTAL_BLOCKS, free_blocks,
+                     3, 5, BLOCK_SIZE, total_blocks, free_blocks,
                      used_low_blocks, BLOCK_SIZE, BLOCK_SIZE, 24,
                      1, 1)
     vh[112:192] = fork_data(BLOCK_SIZE, 1, 1, BLOCK_SIZE)          # allocationFile
@@ -279,7 +310,7 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
     vh[352:432] = fork_data(0, 0, 0, 0)                            # attributesFile
     vh[432:512] = fork_data(0, 0, 0, 0)                            # startupFile
 
-    image = bytearray(IMAGE_BYTES)
+    image = bytearray(image_bytes)
     image[1024:1536] = vh
     image[BLOCK_SIZE:2 * BLOCK_SIZE] = bitmap
     image[2 * BLOCK_SIZE:3 * BLOCK_SIZE] = extents_node0
@@ -288,12 +319,12 @@ def build_image(launchd_bytes, marker_bytes=ROOT_MARKER_BYTES):
     image[launchd_start * BLOCK_SIZE:launchd_start * BLOCK_SIZE + len(launchd_bytes)] = launchd_bytes
     image[marker_start * BLOCK_SIZE:marker_start * BLOCK_SIZE + len(marker_bytes)] = marker_bytes
     image[dyld_start * BLOCK_SIZE:dyld_start * BLOCK_SIZE + len(dyld_bytes)] = dyld_bytes
-    image[IMAGE_BYTES - 1024:IMAGE_BYTES - 512] = vh
-    validate_hfs(image)
+    image[image_bytes - 1024:image_bytes - 512] = vh
+    validate_hfs(image, allow_apple=real)
     return bytes(image), init_info
 
 
-def validate_hfs(data):
+def validate_hfs(data, allow_apple=False):
     if len(data) < 8 * BLOCK_SIZE or len(data) > 64 * 1024 * 1024 or len(data) % 0x4000:
         raise ValueError('HFS+ root image size out of bounds or not 16K-aligned')
     sig, version, attrs, _, jnl, _, _, _, _, file_cnt, dir_cnt, blk_size, total_blks, free_blks = (
@@ -341,11 +372,11 @@ def validate_hfs(data):
                 raise ValueError('HFS+ catalog file extent out of bounds')
             file_bytes = data[fstart * BLOCK_SIZE:fstart * BLOCK_SIZE + logical_size]
             if (parent_id, name) == (18, 'launchd'):
-                launchd_found = build_init.validate(file_bytes)
+                launchd_found = inspect_apple_binary(file_bytes, 2) if allow_apple else build_init.validate(file_bytes)
             elif (parent_id, name) == (17, 'miami-root'):
                 marker_found = file_bytes
             elif (parent_id, name) == (22, 'dyld'):
-                dyld_found = validate_dyld(file_bytes)
+                dyld_found = inspect_apple_binary(file_bytes, 7) if allow_apple else validate_dyld(file_bytes)
     if not launchd_found or launchd_found.get('dylinker') != '/usr/lib/dyld' or marker_found != ROOT_MARKER_BYTES or not dyld_found:
         raise ValueError('HFS+ image missing verified /sbin/launchd, /usr/lib/dyld or /etc/miami-root')
     return {'type': 'hfsplus', 'sha256': hashlib.sha256(data).hexdigest(),
