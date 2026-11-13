@@ -78,4 +78,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert files.read_text().count("bsd/dev/remote_root_protocol.c") == 1
     assert (tree / "bsd/dev/remote_root_protocol.c").read_bytes() == (root / "xnu/remote_root_protocol.c").read_bytes()
     assert (tree / "bsd/dev/remote_root_protocol.h").read_bytes() == (root / "xnu/remote_root_protocol.h").read_bytes()
+    assert files.read_text().count("bsd/dev/remote_root_client.c") == 1
+    for name in ("remote_root_client.c", "remote_root_client.h"):
+        assert (tree / "bsd/dev" / name).read_bytes() == (root / "xnu" / name).read_bytes()
 print("remote-root C codec and server interoperability checks passed")

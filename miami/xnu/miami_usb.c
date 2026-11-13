@@ -12,6 +12,7 @@
  * - miamiusb=2 (default): start USB device gadget & CDC-ECM Ethernet interface (ue0)
  * - dyldprobe=1: test a bounded read of the cache header over USB Ethernet
  * - rootprobe=1: test read-only remote block protocol against a host image
+ * - rootstream=1: test bounded multi-chunk reads using the remote-root client
  */
 #if defined(ARM64_BOARD_CONFIG_MIAMI)
 #include <sys/param.h>
@@ -27,6 +28,7 @@
 #include <pexpert/pexpert.h>
 #include <sys/kpi_mbuf.h>
 #include <sys/kpi_socket.h>
+#include <sys/errno.h>
 #include <sys/sockio.h>
 #include <net/if.h>
 #include <net/if_types.h>
@@ -40,6 +42,7 @@
 #include <net/dlil.h>
 #include <sys/kern_event.h>
 #include "remote_root_protocol.h"
+#include "remote_root_client.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern ppnum_t pmap_find_phys(pmap_t pmap, addr64_t va);
@@ -788,6 +791,72 @@ ud_cache_probe_thread(void *arg __unused, wait_result_t wr __unused)
 	sock_close(so);
 }
 
+/* Socket callbacks run only on the root-stream worker, never in USB input. */
+static int
+ud_root_send(void *context, const uint8_t *packet, size_t length)
+{
+	socket_t so = (socket_t)context;
+	struct iovec iov = { .iov_base = (void *)(uintptr_t)packet, .iov_len = length };
+	struct msghdr msg = { .msg_iov = &iov, .msg_iovlen = 1 };
+	size_t sent = 0;
+	return sock_send(so, &msg, 0, &sent) == 0 && sent == length ? 0 : -1;
+}
+
+static int
+ud_root_receive(void *context, uint8_t *packet, size_t capacity, size_t *length)
+{
+	socket_t so = (socket_t)context;
+	for (unsigned poll = 0; poll < 20; poll++) {
+		struct iovec iov = { .iov_base = packet, .iov_len = capacity };
+		struct msghdr msg = { .msg_iov = &iov, .msg_iovlen = 1 };
+		errno_t error = sock_receive(so, &msg, MSG_DONTWAIT, length);
+		if (error == 0) return (msg.msg_flags & MSG_TRUNC) ? -1 : 1;
+		if (error != EWOULDBLOCK) return -1;
+		ud_sleep_ms(100);
+	}
+	return 0;
+}
+
+static void
+ud_root_stream_thread(void *arg __unused, wait_result_t wr __unused)
+{
+	static uint8_t block[4096];
+	struct sockaddr_in to;
+	socket_t so = NULL;
+	struct miami_root_client client = { .next_sequence = 1 };
+	bzero(&to, sizeof(to));
+	to.sin_len = sizeof(to);
+	to.sin_family = AF_INET;
+	to.sin_port = htons(5142);
+	to.sin_addr.s_addr = htonl(0xc0a80701);
+	errno_t err = sock_socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP, NULL, NULL, &so);
+	if (err == 0) err = sock_connect(so, (struct sockaddr *)&to, 0);
+	if (err != 0) {
+		printf("MIAMI ROOT STREAM: socket setup failed %d\n", err);
+		if (so != NULL) sock_close(so);
+		return;
+	}
+	client.io.context = so;
+	client.io.send = ud_root_send;
+	client.io.receive = ud_root_receive;
+	printf("MIAMI ROOT STREAM: waiting for read-only image server\n");
+	bool ready = false;
+	/* Allow the host time to reattach USB after fastboot. */
+	for (unsigned retry = 0; retry < 12 && !ready; retry++) {
+		ready = miami_root_query_size(&client) == 0;
+	}
+	if (!ready || client.image_size < sizeof(block)) {
+		printf("MIAMI ROOT STREAM: image size unavailable or too small\n");
+	} else if (miami_root_read(&client, 0, block, sizeof(block)) != 0) {
+		printf("MIAMI ROOT STREAM: multi-chunk read failed\n");
+	} else if (block[1024] != 'H' || (block[1025] != '+' && block[1025] != 'X')) {
+		printf("MIAMI ROOT STREAM: HFS signature mismatch\n");
+	} else {
+		printf("MIAMI ROOT STREAM: 4096-byte multi-chunk HFS read verified\n");
+	}
+	sock_close(so);
+}
+
 /*
  * Diagnostic only: discover the remote image size and read its HFS volume
  * signature. It does not register a block device or mount the remote image.
@@ -890,10 +959,16 @@ ud_thread(void *arg __unused, wait_result_t wr __unused)
 				thread_deallocate(probe_thread);
 			}
 			int rootprobe = 0;
+			int rootstream = 0;
 			PE_parse_boot_argn("rootprobe", &rootprobe, sizeof(rootprobe));
-			ud.root_diagnostics = rootprobe != 0;
+			PE_parse_boot_argn("rootstream", &rootstream, sizeof(rootstream));
+			ud.root_diagnostics = rootprobe != 0 || rootstream != 0;
 			if (rootprobe && ud.ifp != NULL &&
 			    kernel_thread_start(ud_root_probe_thread, NULL, &probe_thread) == KERN_SUCCESS) {
+				thread_deallocate(probe_thread);
+			}
+			if (rootstream && ud.ifp != NULL &&
+			    kernel_thread_start(ud_root_stream_thread, NULL, &probe_thread) == KERN_SUCCESS) {
 				thread_deallocate(probe_thread);
 			}
 		}
