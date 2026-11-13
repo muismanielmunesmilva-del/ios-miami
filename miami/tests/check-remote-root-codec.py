@@ -15,6 +15,12 @@ spec.loader.exec_module(server)
 
 with tempfile.TemporaryDirectory() as directory:
     library = Path(directory) / "codec.so"
+    for name in ("remote_root_protocol.c", "remote_root_client.c"):
+        obj = Path(directory) / (name + ".o")
+        subprocess.run(["clang", "--target=arm64-apple-darwin", "-std=c11",
+                        "-ffreestanding", "-Wall", "-Wextra", "-Werror",
+                        "-c", str(root / "xnu" / name), "-o", str(obj)], check=True)
+        assert obj.read_bytes()[:8] == b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01"
     subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC",
                     "-shared", str(root / "xnu" / "remote_root_protocol.c"),
                     "-o", str(library)], check=True)
