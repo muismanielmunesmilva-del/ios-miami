@@ -6,7 +6,9 @@ import tempfile
 
 source = (Path(__file__).resolve().parents[1] / 'xnu/miami_touch.c').read_text()
 start = source.index('static bool\ngoodix_checksum_valid(')
-end = source.index('/* Goodix Berlin-D connectivity check:', start)
+helper_end = source.index('/* Accept only distinct finger IDs', start)
+retry_start = source.index('/* Match Goodix Berlin', helper_end)
+end = source.index('/* Goodix Berlin-D connectivity check:', retry_start)
 prefix = r'''
 #include <stdbool.h>
 #include <stdint.h>
@@ -47,7 +49,7 @@ int main(void) {
 with tempfile.TemporaryDirectory(prefix='miami-touch-retry-') as tmp:
     test = Path(tmp) / 'test.c'
     binary = Path(tmp) / 'test'
-    test.write_text(prefix + source[start:end] + suffix)
+    test.write_text(prefix + source[start:helper_end] + source[retry_start:end] + suffix)
     subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', str(test), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
 print('PASS: invalid responses retried within Goodix bounds')
