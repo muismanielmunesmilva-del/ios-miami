@@ -16,6 +16,21 @@ names four register ranges, an interrupt, six clocks and a GPU SMMU; it also
 names a615_zap firmware. These properties are a starting point, not proof
 that the resources are safe to access with the present power and clock state.
 
+The locally supplied stock package's radio.img contains a NON-HLOS sparse
+image. After read-only extraction on the host, that image contains
+a615_zap.mdt and a615_zap.b00 through b02, plus wlanmdsp.mbn and multiple
+board-specific WLAN files. The extracted proprietary firmware remains local.
+The original image's presence does not establish that the currently running
+phone has the same firmware version, nor does it establish trust acceptance.
+
+The [MIAMI community kernel's pinned A619 table](https://github.com/Motorola-Miami/android_kernel_motorola_sm6375/blob/5104f0a1b52f273844a8fa4116b6aed4e6f303e3/drivers/gpu/msm/adreno-gpulist.h)
+distinguishes the holi-specific A619 entry from the generic A619 entry. The
+holi entry names a630_sqe.fw and a615_zap and uses a619_holi-specific GPU
+operations. The generic entry's a619_gmu.bin must not be assumed to apply to
+the holi entry. This reference tree is not verified to be the exact kernel
+revision of the user's installed Motorola build. The SQE firmware has not yet
+been located or validated in the local stock package.
+
 The same tree describes qcom,icnss, its memory resource, interrupt list and
 IOMMU association. Its smmu_iova_ipa range is IOVA, not a physical register
 mapping. A Bluetooth node names WCN3990, but that alone does not prove the
