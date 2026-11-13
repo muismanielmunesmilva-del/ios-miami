@@ -82,6 +82,7 @@ jobs:
         run: |
           python3 miami/tests/check-remote-root-server.py
           python3 miami/tests/check-remote-root-codec.py
+          python3 miami/tests/check-remote-root-client.py
       - name: Validate Miami UFS driver invariants
         run: python3 miami/tests/check-ufs.py
       - name: Validate Miami Display, HID, Keys, USB, and Touch subsystems

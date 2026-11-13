@@ -23,6 +23,9 @@ must validate the response and handle loss, duplicates, and disconnects.
 An opt-in kernel diagnostic, rootprobe=1, uses the codec to query the image
 size and read the HFS signature at offset 1024. It does not mount the image.
 It is disabled by default and has not yet been validated on the phone.
+The portable read client additionally divides reads into bounded chunks,
+matches sequence and offset, and retries loss; tests exercise those cases
+against the Python server. It is not yet staged into or used by XNU.
 
 The XNU block-device registration, block I/O retry/timeout handling, early
 network boot ordering, filesystem mounting, full private HFS+ root
