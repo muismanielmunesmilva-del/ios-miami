@@ -10,6 +10,7 @@
  * - miamiusb=0: disabled
  * - miamiusb=1: report probe state only
  * - miamiusb=2 (default): start USB device gadget & CDC-ECM Ethernet interface (ue0)
+ * - dyldprobe=1: test a bounded read of the cache header over USB Ethernet
  */
 #if defined(ARM64_BOARD_CONFIG_MIAMI)
 #include <sys/param.h>
@@ -709,6 +710,60 @@ ud_event(uint32_t ev)
 }
 
 static void
+ud_cache_probe_thread(void *arg __unused, wait_result_t wr __unused)
+{
+	static const char name[] = "dyld_shared_cache_arm64";
+	static const char expected[] = "dyld_v1   arm64";
+	static const uint8_t header[] = { 'M','D','S','1', 0,0,0,1, 0,0,16 };
+	uint8_t request[20 + sizeof(name) - 1] = {
+		'M','D','R','1', 0,0,0,1, 0,0,0,0,0,0,0,0,
+		0,16, 0,sizeof(name) - 1
+	};
+	uint8_t response[27];
+	struct sockaddr_in to;
+	socket_t so = NULL;
+	errno_t err;
+	memcpy(request + 20, name, sizeof(name) - 1);
+	bzero(&to, sizeof(to));
+	to.sin_len = sizeof(to);
+	to.sin_family = AF_INET;
+	to.sin_port = htons(5141);
+	to.sin_addr.s_addr = htonl(0xc0a80701);
+	err = sock_socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP, NULL, NULL, &so);
+	if (err == 0) {
+		err = sock_connect(so, (struct sockaddr *)&to, 0);
+	}
+	if (err != 0) {
+		printf("MIAMI CACHE: socket setup failed %d\n", err);
+		if (so != NULL) sock_close(so);
+		return;
+	}
+	printf("MIAMI CACHE: waiting for USB host read-only probe\n");
+	for (unsigned attempt = 0; attempt < 30; attempt++) {
+		struct iovec out_iov = { .iov_base = request, .iov_len = sizeof(request) };
+		struct msghdr out_msg = { .msg_iov = &out_iov, .msg_iovlen = 1 };
+		size_t sent = 0;
+		(void)sock_send(so, &out_msg, 0, &sent);
+		for (unsigned poll = 0; poll < 20; poll++) {
+			struct iovec in_iov = { .iov_base = response, .iov_len = sizeof(response) };
+			struct msghdr in_msg = { .msg_iov = &in_iov, .msg_iovlen = 1 };
+			size_t received = 0;
+			ud_sleep_ms(100);
+			err = sock_receive(so, &in_msg, MSG_DONTWAIT, &received);
+			if (err == 0 && received == sizeof(response) &&
+			    memcmp(response, header, sizeof(header)) == 0 &&
+			    memcmp(response + 11, expected, sizeof(expected)) == 0) {
+				printf("MIAMI CACHE: USB header read verified (16 bytes)\n");
+				sock_close(so);
+				return;
+			}
+		}
+	}
+	printf("MIAMI CACHE: probe timed out; host or USB network unavailable\n");
+	sock_close(so);
+}
+
+static void
 ud_thread(void *arg __unused, wait_result_t wr __unused)
 {
 	uint32_t ticks = 0;
@@ -718,6 +773,13 @@ ud_thread(void *arg __unused, wait_result_t wr __unused)
 		if (!if_created && ++ticks >= 2000) {
 			if_created = true;
 			ud_if_create();
+			int cacheprobe = 0;
+			PE_parse_boot_argn("dyldprobe", &cacheprobe, sizeof(cacheprobe));
+			thread_t probe_thread;
+			if (cacheprobe && ud.ifp != NULL &&
+			    kernel_thread_start(ud_cache_probe_thread, NULL, &probe_thread) == KERN_SUCCESS) {
+				thread_deallocate(probe_thread);
+			}
 		}
 		uint32_t count = dwc_rd(GEVNTCOUNT) & 0xffff;
 		if (count) {
