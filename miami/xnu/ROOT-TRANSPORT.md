@@ -1,4 +1,35 @@
-# Real iOS root: investigation, not yet an implementation
+# Real iOS root: transport bring-up
+
+## Current status after USB diagnostic 0040
+
+The temporary synthetic-PID1 image established a CDC-ECM link to Linux in WSL.
+The host pinged 192.168.7.2; three cache-header requests reached the read-only
+UDP server and the server reported sending three responses. The device has
+not yet been observed acknowledging the response. This does not mount the
+real iOS root or establish that dyld can map its cache.
+
+The miami/userspace/remote_root_server.py tool can serve ranges of one
+explicitly selected local regular file read-only over UDP. Its 18-byte
+big-endian request contains the magic MBR1, sequence, 64-bit offset, and
+16-bit count. A zero count at offset zero asks for the 64-bit file size. A
+read is at most 1024 bytes. A response uses MBS1, repeats the sequence and
+offset, and carries a status, payload length and data. Out-of-range reads and
+malformed requests are rejected. The independent C encoder/decoder is checked
+against the Python server, including malformed and mismatched replies. This
+protocol is a bring-up mechanism, not yet an XNU disk driver or a complete
+security design. UDP send success alone does not prove delivery; the client
+must validate the response and handle loss, duplicates, and disconnects.
+
+An opt-in kernel diagnostic, rootprobe=1, uses the codec to query the image
+size and read the HFS signature at offset 1024. It does not mount the image.
+It is disabled by default and has not yet been validated on the phone.
+
+The XNU block-device registration, block I/O retry/timeout handling, early
+network boot ordering, filesystem mounting, full private HFS+ root
+construction and real dyld/launchd integration are still outstanding. The
+default RAM-root boot continues unchanged. The operating system may not be
+able to mount or execute from a remote read-only root without additional work;
+no such capability is claimed.
 
 The phone has reported that image0011 runs the bounded PSYNCH signal probe.
 The current `mockfs` root exposes one static Mach-O and is limited to 64 KiB.
@@ -46,7 +77,8 @@ that inspection are shipped in this repository.
 The ios-sweet root builder normally constructs a 16 GiB HFS+ image from the
 OS and cryptexes, using apfs-fuse, mkfs.hfsplus, rsync and privileged mounts.
 It uses userdata for its UFS root. That route is not authorized on MIAMI:
-Android and its data must be preserved. No MIAMI storage driver is staged.
+Android and its data must be preserved. A read-only MIAMI UFS driver exists,
+but it must not be pointed at Android userdata as an iOS root.
 
 Possible approaches require further evidence:
 
@@ -64,14 +96,15 @@ Possible approaches require further evidence:
   unverified. Its PHY files have GPL-2.0-only licensing. Compatibility with
   SM6375/iOS 16, PHY sequencing, power, DMA/SMMU and licensing require separate
   investigation; no code has been copied or enabled from it.
-* A network root similarly needs working network and filesystem drivers. No
-  functional MIAMI network device is available to the current XNU build.
+* A network root needs a working network and filesystem/block driver. The
+  later 0040 USB network evidence is described above; a remote root device
+  has not yet been implemented.
 
 Do not flash, repartition, format or use Android userdata for these experiments.
 First measure the actual executable and shared-cache dependencies from the
 pinned Apple source, establish a bounded transport and test it independently.
 Compiling the existing kernel or parsing the restore manifest does not establish
-that real launchd or iOS can start. No new phone image is prepared by this work.
+that real launchd or iOS can start.
 
 References: [ios-sweet root builder](https://github.com/dipa-studio/ios-sweet/blob/45263bee51df4a0f55cdf9c649af886399488ddb/tools/mkiosroot.sh),
 [Apple XNU memory devices](https://github.com/apple-oss-distributions/xnu/blob/xnu-8796.141.3/bsd/dev/memdev.c),

@@ -15,11 +15,22 @@ def stage(tree):
             'bsd/dev/miami_keys.c\t\t\tstandard\nbsd/dev/miami_usb.c\t\t\tstandard\n'
         )
         files_bsd.write_text(files_content)
+    protocol_entry = 'bsd/dev/remote_root_protocol.c\t\tstandard\n'
+    if protocol_entry not in files_content:
+        anchor = 'bsd/dev/miami_usb.c\t\t\tstandard\n'
+        if anchor not in files_content:
+            raise ValueError("Could not find miami_usb.c entry in bsd/conf/files")
+        files_content = files_content.replace(anchor, anchor + protocol_entry, 1)
+        files_bsd.write_text(files_content)
 
     # 2. Stage clean driver source at bsd/dev/miami_usb.c
     source_c = (Path(__file__).resolve().parent / 'miami_usb.c').read_text()
     dest_c = tree / 'bsd/dev/miami_usb.c'
     dest_c.write_text(source_c)
+    for name in ('remote_root_protocol.c', 'remote_root_protocol.h'):
+        (tree / 'bsd/dev' / name).write_bytes(
+            (Path(__file__).resolve().parent / name).read_bytes()
+        )
 
     # 3. Hook miami_usb_probe() into bsd_init.c right after miami_keys_init()
     bsd_init = tree / 'bsd/kern/bsd_init.c'

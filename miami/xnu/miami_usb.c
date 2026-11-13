@@ -11,6 +11,7 @@
  * - miamiusb=1: report probe state only
  * - miamiusb=2 (default): start USB device gadget & CDC-ECM Ethernet interface (ue0)
  * - dyldprobe=1: test a bounded read of the cache header over USB Ethernet
+ * - rootprobe=1: test read-only remote block protocol against a host image
  */
 #if defined(ARM64_BOARD_CONFIG_MIAMI)
 #include <sys/param.h>
@@ -38,6 +39,7 @@
 #include <net/if_media.h>
 #include <net/dlil.h>
 #include <sys/kern_event.h>
+#include "remote_root_protocol.h"
 
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern ppnum_t pmap_find_phys(pmap_t pmap, addr64_t va);
@@ -763,6 +765,79 @@ ud_cache_probe_thread(void *arg __unused, wait_result_t wr __unused)
 	sock_close(so);
 }
 
+/*
+ * Diagnostic only: discover the remote image size and read its HFS volume
+ * signature. It does not register a block device or mount the remote image.
+ */
+static void
+ud_root_probe_thread(void *arg __unused, wait_result_t wr __unused)
+{
+	socket_t so = NULL;
+	struct sockaddr_in to;
+	uint8_t request[MIAMI_ROOT_REQUEST_SIZE];
+	uint8_t response[MIAMI_ROOT_RESPONSE_HEADER_SIZE + 512];
+	uint64_t image_size = 0;
+	errno_t err;
+
+	bzero(&to, sizeof(to));
+	to.sin_len = sizeof(to);
+	to.sin_family = AF_INET;
+	to.sin_port = htons(5142);
+	to.sin_addr.s_addr = htonl(0xc0a80701);
+	err = sock_socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP, NULL, NULL, &so);
+	if (err == 0) {
+		err = sock_connect(so, (struct sockaddr *)&to, 0);
+	}
+	if (err != 0) {
+		printf("MIAMI ROOT PROBE: socket setup failed %d\n", err);
+		if (so != NULL) sock_close(so);
+		return;
+	}
+	printf("MIAMI ROOT PROBE: waiting for read-only image server\n");
+	for (uint32_t operation = 0; operation < 2; operation++) {
+		uint64_t offset = operation ? 1024 : 0;
+		uint16_t requested = operation ? 512 : 0;
+		uint16_t expected = operation ? 512 : 8;
+		bool ok = false;
+		if (miami_root_encode_request(request, sizeof(request), operation + 1,
+		    offset, requested) != 0) {
+			break;
+		}
+		for (unsigned attempt = 0; attempt < 60 && !ok; attempt++) {
+			struct iovec out_iov = { .iov_base = request, .iov_len = sizeof(request) };
+			struct msghdr out_msg = { .msg_iov = &out_iov, .msg_iovlen = 1 };
+			size_t sent = 0;
+			(void)sock_send(so, &out_msg, 0, &sent);
+			for (unsigned poll = 0; poll < 20; poll++) {
+				struct iovec in_iov = { .iov_base = response, .iov_len = sizeof(response) };
+				struct msghdr in_msg = { .msg_iov = &in_iov, .msg_iovlen = 1 };
+				const uint8_t *payload = NULL;
+				size_t received = 0;
+				ud_sleep_ms(100);
+				err = sock_receive(so, &in_msg, MSG_DONTWAIT, &received);
+				if (err != 0 || miami_root_decode_response(response, received,
+				    operation + 1, offset, expected, &payload) != 0) {
+					continue;
+				}
+				if (!operation) {
+					for (unsigned i = 0; i < 8; i++) image_size = (image_size << 8) | payload[i];
+					ok = image_size >= 1536 && (image_size & 511) == 0;
+					if (ok) printf("MIAMI ROOT PROBE: image size %llu bytes\n", image_size);
+				} else {
+					ok = payload[0] == 'H' && (payload[1] == '+' || payload[1] == 'X');
+					if (ok) printf("MIAMI ROOT PROBE: HFS volume header verified\n");
+				}
+				break;
+			}
+		}
+		if (!ok) {
+			printf("MIAMI ROOT PROBE: operation %u failed or timed out\n", operation);
+			break;
+		}
+	}
+	sock_close(so);
+}
+
 static void
 ud_thread(void *arg __unused, wait_result_t wr __unused)
 {
@@ -778,6 +853,12 @@ ud_thread(void *arg __unused, wait_result_t wr __unused)
 			thread_t probe_thread;
 			if (cacheprobe && ud.ifp != NULL &&
 			    kernel_thread_start(ud_cache_probe_thread, NULL, &probe_thread) == KERN_SUCCESS) {
+				thread_deallocate(probe_thread);
+			}
+			int rootprobe = 0;
+			PE_parse_boot_argn("rootprobe", &rootprobe, sizeof(rootprobe));
+			if (rootprobe && ud.ifp != NULL &&
+			    kernel_thread_start(ud_root_probe_thread, NULL, &probe_thread) == KERN_SUCCESS) {
 				thread_deallocate(probe_thread);
 			}
 		}

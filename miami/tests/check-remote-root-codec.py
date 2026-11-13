@@ -55,4 +55,21 @@ with tempfile.TemporaryDirectory() as directory:
         assert codec.miami_root_encode_request(small, len(small) - 1, 1, 0, 1) == -1
     finally:
         os.close(fd)
+
+    # Stage the real USB component twice into an isolated miniature tree.
+    stage_spec = importlib.util.spec_from_file_location("usb_component", root / "xnu" / "usb_component.py")
+    stage = importlib.util.module_from_spec(stage_spec)
+    stage_spec.loader.exec_module(stage)
+    tree = Path(directory) / "xnu"
+    for child in ("bsd/conf", "bsd/dev", "bsd/kern"):
+        (tree / child).mkdir(parents=True)
+    files = tree / "bsd/conf/files"
+    files.write_text("bsd/dev/miami_keys.c\t\t\tstandard\n")
+    bsd_init = tree / "bsd/kern/bsd_init.c"
+    bsd_init.write_text("\tmiami_keys_init();\n")
+    stage.stage(tree)
+    stage.stage(tree)
+    assert files.read_text().count("bsd/dev/remote_root_protocol.c") == 1
+    assert (tree / "bsd/dev/remote_root_protocol.c").read_bytes() == (root / "xnu/remote_root_protocol.c").read_bytes()
+    assert (tree / "bsd/dev/remote_root_protocol.h").read_bytes() == (root / "xnu/remote_root_protocol.h").read_bytes()
 print("remote-root C codec and server interoperability checks passed")

@@ -48,6 +48,7 @@ def main():
     parser.add_argument("--bind", default="192.168.7.1")
     parser.add_argument("--port", type=int, default=5142)
     parser.add_argument("--peer", default="192.168.7.2")
+    parser.add_argument("--log-requests", action="store_true")
     args = parser.parse_args()
     if args.image.is_symlink():
         parser.error("the image must not be a symlink")
@@ -66,7 +67,15 @@ def main():
                     continue
                 data = handle(fd, st.st_size, packet)
                 if data is not None:
-                    sock.sendto(data, peer)
+                    _, sequence, status, offset, length = RESPONSE.unpack_from(data)
+                    try:
+                        sent = sock.sendto(data, peer)
+                    except OSError as exc:
+                        print(f"send failed seq={sequence} error={exc}", flush=True)
+                        continue
+                    if args.log_requests:
+                        print(f"peer={peer[0]}:{peer[1]} seq={sequence} offset={offset} "
+                              f"status={status} data_bytes={length} sent_bytes={sent}", flush=True)
     finally:
         os.close(fd)
 

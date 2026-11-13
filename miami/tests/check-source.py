@@ -122,6 +122,9 @@ def check(source, helper, pthread, bearssl, hfs):
     assert 'SGI1 self-test timed out' in cpu_driver
     assert (source / 'bsd/dev/miami_ufs.c').exists()
     assert (source / 'bsd/dev/miami_usb.c').exists()
+    assert (source / 'bsd/dev/remote_root_protocol.c').read_bytes() == (ROOT / 'xnu/remote_root_protocol.c').read_bytes()
+    assert (source / 'bsd/dev/remote_root_protocol.h').read_bytes() == (ROOT / 'xnu/remote_root_protocol.h').read_bytes()
+    assert (source / 'bsd/conf/files').read_text().count('bsd/dev/remote_root_protocol.c') == 1
     for name in ('osfmk/arm64/start.s', 'osfmk/arm64/arm_vm_init.c', 'osfmk/arm64/miami_early.c'):
         assert '0x9c000000' not in (source / name).read_text().lower()
     server = (source / 'iokit/Kernel/IOUserServer.cpp').read_text()
