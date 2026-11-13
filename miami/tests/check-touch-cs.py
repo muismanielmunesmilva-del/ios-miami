@@ -15,18 +15,23 @@ prefix = r'''
 #define GENI_M_IRQ_CLEAR 1
 #define GENI_M_CMD0 2
 #define GENI_M_IRQ_STATUS 3
+#define GENI_RX_FIFO_STATUS 4
+#define GENI_RX_FIFO 5
 #define SPI_CS_ASSERT 8u
 #define SPI_CS_DEASSERT 9u
 #define M_ERRORS 2u
 #define M_CMD_DONE 1u
 #define NSEC_PER_MSEC 1000000
 static unsigned touch_se, current_cmd, cmds[4], ncmd, recovered, transfers;
+static unsigned touch_fifo_depth=16, touch_fifo_stale_words, fifo_words, fifo_reads;
 static bool fail_assert, fail_release, fail_transfer, disabled;
 static void touch_wr(unsigned base, unsigned reg, unsigned value) {
     (void)base; if (reg==GENI_M_CMD0) { current_cmd=value>>27; cmds[ncmd++]=current_cmd; }
 }
 static unsigned touch_rd(unsigned base, unsigned reg) {
-    (void)base; (void)reg;
+    (void)base;
+    if (reg==GENI_RX_FIFO_STATUS) return fifo_words;
+    if (reg==GENI_RX_FIFO) { fifo_reads++; return 0; }
     return ((current_cmd==SPI_CS_ASSERT && fail_assert) ||
             (current_cmd==SPI_CS_DEASSERT && fail_release)) ? M_ERRORS : M_CMD_DONE;
 }
@@ -44,6 +49,11 @@ suffix = r'''
 int main(void) {
     assert(geni_transaction(0,0,1));
     assert(ncmd==2 && cmds[0]==SPI_CS_ASSERT && cmds[1]==SPI_CS_DEASSERT && transfers==1);
+    ncmd=transfers=0; fifo_words=2;
+    assert(geni_transaction(0,0,1) && fifo_reads==2 && touch_fifo_stale_words==2);
+    ncmd=transfers=0; fifo_words=17;
+    assert(!geni_transaction(0,0,1) && ncmd==0 && transfers==0);
+    fifo_words=0;
     ncmd=transfers=0; fail_transfer=true;
     assert(!geni_transaction(0,0,1) && ncmd==2 && cmds[1]==SPI_CS_DEASSERT && transfers==1);
     ncmd=transfers=0; fail_transfer=false; fail_assert=true;

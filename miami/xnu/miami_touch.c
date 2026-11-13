@@ -146,6 +146,13 @@ static uint8_t touch_version_first[8];
 static uint8_t touch_version_before[4];
 static bool touch_version_before_ok;
 static uint32_t touch_info_length;
+/* Bounded snapshots distinguish stale FIFO bytes from a live Goodix reply. */
+static struct {
+	uint32_t addr, fifo_before, fifo_after;
+	uint8_t rx[12];
+} touch_spi_trace[4];
+static unsigned touch_spi_trace_count;
+static uint32_t touch_fifo_stale_words;
 static uint32_t touch_max_x = 1080;
 static uint32_t touch_max_y = 2400;
 static int touch_sleep_chan;
@@ -506,6 +513,15 @@ geni_transaction(const uint8_t *tx, uint8_t *rx, uint32_t length)
 	int notxfer = 0;
 	(void)PE_parse_boot_argn("touchnoxfer", &notxfer, sizeof(notxfer));
 	if (notxfer) return false;
+	/* A completed command must not inherit unread RX data from an earlier
+	 * command. Never consume an unbounded number of FIFO entries. */
+	uint32_t stale = touch_rd(touch_se, GENI_RX_FIFO_STATUS) & 0x01ffffffu;
+	if (stale > touch_fifo_depth) {
+		printf("MIAMI TOUCH: invalid stale RX count=%u\n", stale);
+		return false;
+	}
+	for (uint32_t i = 0; i < stale; i++) (void)touch_rd(touch_se, GENI_RX_FIFO);
+	touch_fifo_stale_words += stale;
 	if (!geni_cs(true)) return false;
 	bool transferred = geni_transfer(tx, rx, length);
 	bool released = geni_cs(false);
@@ -529,8 +545,16 @@ goodix_read(uint32_t addr, uint8_t *data, uint32_t len)
 	tx[6] = 0xffu;
 	tx[7] = 0xffu;
 	memset(tx + 8, 0, len);
+	uint32_t before = touch_rd(touch_se, GENI_RX_FIFO_STATUS);
 	if (!geni_transaction(tx, rx, 8u + len)) {
 		return false;
+	}
+	if (touch_spi_trace_count < 4 && len >= 4) {
+		unsigned n = touch_spi_trace_count++;
+		touch_spi_trace[n].addr = addr;
+		touch_spi_trace[n].fifo_before = before;
+		touch_spi_trace[n].fifo_after = touch_rd(touch_se, GENI_RX_FIFO_STATUS);
+		memcpy(touch_spi_trace[n].rx, rx, sizeof(touch_spi_trace[n].rx));
 	}
 	memcpy(data, rx + 8, len);
 	return true;
@@ -721,6 +745,15 @@ touch_thread(void *arg, wait_result_t result)
 			    touch_version_before[2], touch_version_before[3],
 			    touch_confirmed, touch_version_valid, touch_version_first[0], touch_version_first[1],
 			    touch_version_first[2], touch_version_first[3], touch_info_length);
+		if (!touch_report_verified && poll_count % 400 == 1) {
+			for (unsigned i = 0; i < touch_spi_trace_count; i++) {
+				const uint8_t *p = touch_spi_trace[i].rx;
+				printf("MIAMI SPI%u: a=%x fifo=%x/%x stale=%u rx=%02x%02x%02x%02x%02x%02x%02x%02x:%02x%02x%02x%02x\n",
+				    i, touch_spi_trace[i].addr, touch_spi_trace[i].fifo_before,
+				    touch_spi_trace[i].fifo_after, touch_fifo_stale_words,
+				    p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11]);
+			}
+		}
 		if (ok && touch_report_verified) {
 			if (report[0] != 0 && report[0] != 0xffu) {
 				if (!goodix_checksum_valid(report, 8u)) {
