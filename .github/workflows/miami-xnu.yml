@@ -93,7 +93,7 @@ jobs:
 
   kernel:
     needs: validate
-    runs-on: macos-15-intel
+    runs-on: macos-15
     timeout-minutes: 120
     env:
       MACOS_VERSION: '13.5'
