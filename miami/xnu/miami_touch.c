@@ -146,6 +146,7 @@ static uint8_t touch_version_first[8];
 static uint8_t touch_version_before[4];
 static bool touch_version_before_ok;
 static uint32_t touch_info_length;
+static unsigned touch_version_attempts, touch_info_attempts;
 /* Bounded snapshots distinguish stale FIFO bytes from a live Goodix reply. */
 static struct {
 	uint32_t addr, fifo_before, fifo_after;
@@ -609,6 +610,35 @@ goodix_le32(const uint8_t *p)
 	return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
+/* Match Goodix Berlin's bounded retries, accepting only a valid checksum.
+ * Consecutive reads also make a delayed-response hypothesis observable. */
+static bool
+goodix_read_version_retry(uint8_t *version, unsigned *attempts)
+{
+	for (unsigned i = 0; i < 2; i++) {
+		*attempts = i + 1;
+		if (goodix_read(GOODIX_FW_VERSION, version, 28u) &&
+		    goodix_checksum_ok(version, 28u)) return true;
+		delay(10000);
+	}
+	return false;
+}
+
+static bool
+goodix_read_info_retry(uint8_t *info, uint32_t *length, unsigned *attempts)
+{
+	for (unsigned i = 0; i < 3; i++) {
+		*attempts = i + 1;
+		if (goodix_read(GOODIX_IC_INFO, info, 256u)) {
+			*length = goodix_le16(info);
+			if (*length >= 40u && *length < 256u &&
+			    goodix_checksum_ok(info, *length)) return true;
+		}
+		delay(5000);
+	}
+	return false;
+}
+
 /* Goodix Berlin-D connectivity check: a transient boot-option register,
  * not a firmware update. A completed SPI command is not sufficient: require
  * an exact readback, bounded to the three attempts used by the driver. */
@@ -655,9 +685,10 @@ goodix_probe(void)
 	if (touch_confirmed) delay(100000);
 
 	printf("MIAMI TOUCH: probing Goodix FW version via SPI0...\n");
-	if (goodix_read(GOODIX_FW_VERSION, version, sizeof(version))) {
+	memset(version, 0, sizeof(version));
+	touch_version_valid = goodix_read_version_retry(version, &touch_version_attempts);
+	{
 		memcpy(touch_version_first, version, sizeof(touch_version_first));
-		touch_version_valid = goodix_checksum_ok(version, sizeof(version));
 		printf("MIAMI TOUCH: FW_VERSION raw: %02x %02x %02x %02x %02x %02x %02x %02x\n",
 		    version[0], version[1], version[2], version[3],
 		    version[4], version[5], version[6], version[7]);
@@ -676,16 +707,15 @@ goodix_probe(void)
 		} else {
 			printf("MIAMI TOUCH: firmware response invalid or blank; SPI completion does not prove chip response\n");
 		}
-	} else {
-		printf("MIAMI TOUCH: read FW_VERSION failed (continuing with report_addr %#x)\n", touch_report_addr);
 	}
 
 	printf("MIAMI TOUCH: reading IC_INFO...\n");
-	if (goodix_read(GOODIX_IC_INFO, info, 2)) {
-		uint32_t length = goodix_le16(info);
+	{
+		uint32_t length = 0;
+		bool info_valid = goodix_read_info_retry(info, &length, &touch_info_attempts);
 		touch_info_length = length;
 		printf("MIAMI TOUCH: IC_INFO len=%u [%02x %02x]\n", length, info[0], info[1]);
-		if (length >= 40 && length < GOODIX_MAX_READ && goodix_read(GOODIX_IC_INFO, info, length) && goodix_checksum_ok(info, length)) {
+		if (info_valid && info[3] != 2u) {
 			printf("MIAMI TOUCH: IC_INFO checksum OK\n");
 			uint32_t offset = 2u + 16u + 10u + 4u;
 			for (int i = 0; i < 5 && offset < length; i++) {
@@ -746,6 +776,8 @@ touch_thread(void *arg, wait_result_t result)
 			    touch_confirmed, touch_version_valid, touch_version_first[0], touch_version_first[1],
 			    touch_version_first[2], touch_version_first[3], touch_info_length);
 		if (!touch_report_verified && poll_count % 400 == 1) {
+			printf("MIAMI RETRY: fw=%u valid=%d info=%u len=%u\n",
+			    touch_version_attempts, touch_version_valid, touch_info_attempts, touch_info_length);
 			for (unsigned i = 0; i < touch_spi_trace_count; i++) {
 				const uint8_t *p = touch_spi_trace[i].rx;
 				printf("MIAMI SPI%u: a=%x fifo=%x/%x stale=%u rx=%02x%02x%02x%02x%02x%02x%02x%02x:%02x%02x%02x%02x\n",

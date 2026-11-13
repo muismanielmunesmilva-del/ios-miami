@@ -84,6 +84,7 @@ jobs:
           python3 miami/tests/check-touch-confirm.py
           python3 miami/tests/check-touch-spi.py
           python3 miami/tests/check-touch-cs.py
+          python3 miami/tests/check-touch-retry.py
 
   kernel:
     needs: validate
