@@ -140,6 +140,8 @@ static bool touch_report_verified;
 static bool touch_confirmed;
 static bool touch_version_valid;
 static uint8_t touch_version_first[8];
+static uint8_t touch_version_before[4];
+static bool touch_version_before_ok;
 static uint32_t touch_info_length;
 static uint32_t touch_max_x = 1080;
 static uint32_t touch_max_y = 2400;
@@ -238,6 +240,9 @@ touch_clocks_init(void)
 	    rcg_cmd_after, rcg_cfg_after, halt_after, vote_after, (halt_after >> 31) & 1u);
 
 	delay(1000);
+	printf("MIAMI TOUCH: s0 halt after 1ms=%d raw=%#x\n",
+	    (touch_rd(touch_gcc, TOUCH_BRANCH_HALT) >> 31) & 1u,
+	    touch_rd(touch_gcc, TOUCH_BRANCH_HALT));
 	return true;
 }
 
@@ -427,9 +432,10 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 	}
 	touch_wr(touch_se, GENI_M_IRQ_CLEAR, 0xffffffffu);
 	touch_wr(touch_se, SPI_TX_TRANS_LEN, length);
-	touch_wr(touch_se, SPI_RX_TRANS_LEN, length);
+	if (rx) touch_wr(touch_se, SPI_RX_TRANS_LEN, length);
 
-	touch_wr(touch_se, GENI_M_CMD0, SPI_FULL_DUPLEX);
+	/* Goodix SPI writes are TX-only; reads use simultaneous TX/RX. */
+	touch_wr(touch_se, GENI_M_CMD0, rx ? SPI_FULL_DUPLEX : (SPI_TX_ONLY << 27));
 
 	clock_interval_to_deadline(200, NSEC_PER_MSEC, &deadline);
 	while (mach_absolute_time() < deadline) {
@@ -441,18 +447,18 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 			touch_wr(touch_se, GENI_TX_FIFO, word);
 		}
 		status = touch_rd(touch_se, GENI_M_IRQ_STATUS);
-		geni_drain(rx, length, &received);
+		if (rx) geni_drain(rx, length, &received);
 		if (status & M_ERRORS) {
 			printf("MIAMI TOUCH: xfer error status=%#x\n", status);
 			break;
 		}
 		if (status & M_CMD_DONE) {
-			geni_drain(rx, length, &received);
+			if (rx) geni_drain(rx, length, &received);
 			touch_wr(touch_se, GENI_M_IRQ_CLEAR, status);
-			if (received == length) {
+			if (sent == length && (!rx || received == length)) {
 				return true;
 			}
-			printf("MIAMI TOUCH: xfer done but recv %u != %u\n", received, length);
+			printf("MIAMI TOUCH: incomplete xfer sent=%u recv=%u len=%u\n", sent, received, length);
 			break;
 		}
 	}
@@ -577,6 +583,7 @@ goodix_probe(void)
 
 	/* Default report address for GT9916S / Berlin-D */
 	touch_report_addr = 0x10200u;
+	touch_version_before_ok = goodix_read(GOODIX_FW_VERSION, touch_version_before, sizeof(touch_version_before));
 	touch_confirmed = goodix_confirm();
 	if (touch_confirmed) delay(100000);
 
@@ -666,7 +673,9 @@ touch_thread(void *arg, wait_result_t result)
 		}
 
 		if (!touch_report_verified && poll_count % 100 == 1)
-			printf("MIAMI TOUCH: unverified confirm=%d fwvalid=%d fw=%02x%02x%02x%02x info_len=%u; diagnostic reads only\n",
+			printf("MIAMI TOUCH: unverified pre=%d:%02x%02x%02x%02x confirm=%d fwvalid=%d fw=%02x%02x%02x%02x info_len=%u\n",
+			    touch_version_before_ok, touch_version_before[0], touch_version_before[1],
+			    touch_version_before[2], touch_version_before[3],
 			    touch_confirmed, touch_version_valid, touch_version_first[0], touch_version_first[1],
 			    touch_version_first[2], touch_version_first[3], touch_info_length);
 		if (ok && touch_report_verified) {

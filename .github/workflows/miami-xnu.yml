@@ -82,6 +82,7 @@ jobs:
           python3 miami/tests/check-usb.py
           python3 miami/tests/check-touch.py
           python3 miami/tests/check-touch-confirm.py
+          python3 miami/tests/check-touch-spi.py
 
   kernel:
     needs: validate
