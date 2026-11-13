@@ -157,6 +157,7 @@ static uint32_t touch_fifo_stale_words;
 static uint32_t touch_max_x = 1080;
 static uint32_t touch_max_y = 2400;
 static int touch_sleep_chan;
+static unsigned touch_bad_samples;
 
 struct touch_point {
 	bool down;
@@ -625,6 +626,31 @@ goodix_finger_ids_valid(const uint8_t *report, uint32_t count)
 	return true;
 }
 
+/* Check an entire snapshot before changing contact state. */
+static bool
+goodix_frame_valid(const uint8_t *report, uint32_t *count)
+{
+	if (!goodix_checksum_valid(report, 8u)) return false;
+	if (!(report[0] & GOODIX_STATUS_TOUCH)) { *count = 0; return true; }
+	*count = report[2] & 0x0fu;
+	if (*count > GOODIX_MAX_TOUCHES) return false;
+	if (*count && !goodix_checksum_valid(report + 8u, 8u * *count + 2u)) return false;
+	return goodix_finger_ids_valid(report, *count);
+}
+
+static void
+goodix_log_bad_frame(const uint8_t *report)
+{
+	if (touch_bad_samples++ >= 2u) return;
+	printf("MIAMI BAD HEAD: %02x%02x%02x%02x%02x%02x%02x%02x\n",
+	    report[0], report[1], report[2], report[3], report[4], report[5], report[6], report[7]);
+	for (unsigned i = 0; i < 4; i++) {
+		const uint8_t *p = report + 8u + 8u * i;
+		printf("MIAMI BAD DATA%u: %02x%02x%02x%02x%02x%02x%02x%02x\n",
+		    i, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+	}
+}
+
 /* Match Goodix Berlin's bounded retries, accepting only a valid checksum.
  * Consecutive reads also make a delayed-response hypothesis observable. */
 static bool
@@ -803,38 +829,20 @@ touch_thread(void *arg, wait_result_t result)
 		}
 		if (ok && touch_report_verified) {
 			if (report[0] != 0 && report[0] != 0xffu) {
-				/* A controller may update a report while it is sampled. Retry
-				 * a bad header once before discarding the event. */
-				if (!goodix_checksum_valid(report, 8u)) {
+				uint32_t count = 0;
+				/* Retry the entire snapshot on either header or body failure. */
+				if (!goodix_frame_valid(report, &count)) {
+					goodix_log_bad_frame(report);
 					delay(1000);
 					ok = goodix_read(touch_report_addr, report, sizeof(report));
 				}
-				if (!ok || !goodix_checksum_valid(report, 8u)) {
-					printf("MIAMI TOUCH: invalid header checksum\n");
+				if (!ok || !goodix_frame_valid(report, &count)) {
+					printf("MIAMI TOUCH: invalid frame after retry\n");
 					goodix_write(touch_report_addr, &zero, 1u);
 					touch_wait(10);
 					continue;
 				}
 				if (report[0] & GOODIX_STATUS_TOUCH) {
-					uint32_t count = report[2] & 0x0fu;
-					if (count > GOODIX_MAX_TOUCHES) {
-						printf("MIAMI TOUCH: invalid contact count %u\n", count);
-						goodix_write(touch_report_addr, &zero, 1u);
-						touch_wait(10);
-						continue;
-					}
-					if (count && !goodix_checksum_valid(report + 8u, 8u * count + 2u)) {
-						printf("MIAMI TOUCH: invalid contact checksum\n");
-						goodix_write(touch_report_addr, &zero, 1u);
-						touch_wait(10);
-						continue;
-					}
-					if (!goodix_finger_ids_valid(report, count)) {
-						printf("MIAMI TOUCH: unsupported or duplicate contact\n");
-						goodix_write(touch_report_addr, &zero, 1u);
-						touch_wait(10);
-						continue;
-					}
 					bool seen[GOODIX_MAX_TOUCHES] = {false};
 					for (uint32_t i = 0; i < count && i < GOODIX_MAX_TOUCHES; i++) {
 						const uint8_t *t = report + 8u + 8u * i;
