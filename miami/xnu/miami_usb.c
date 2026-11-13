@@ -142,6 +142,8 @@ static struct {
 	unsigned    txq_head, txq_count;
 	bool        tx_busy;
 	uint64_t    rx_frames, tx_frames;
+	bool        root_diagnostics;
+	unsigned    root_rx_logged;
 } ud;
 
 static inline uint32_t
@@ -468,6 +470,19 @@ ud_rx_done(void)
 	ud_sync(UD_TRB_RX, 16);
 	uint32_t len = UD_FRAME_MAX - (t[2] & 0xffffff);
 	ud_sync(UD_RX, UD_FRAME_MAX);
+	/* Log only a few unfragmented IPv4 UDP responses from the diagnostic server. */
+	const uint8_t *frame = (const uint8_t *)(ud.dma + UD_RX);
+	bool root_reply = false;
+	if (ud.root_diagnostics && ud.root_rx_logged < 3 && len >= 42 &&
+	    frame[12] == 0x08 && frame[13] == 0x00 &&
+	    (frame[14] >> 4) == 4 && frame[23] == 17) {
+		unsigned ihl = (frame[14] & 0x0f) * 4;
+		if (ihl >= 20 && len >= 14 + ihl + 8 &&
+		    (frame[20] & 0x1f) == 0 && frame[21] == 0 &&
+		    frame[14 + ihl] == 0x14 && frame[15 + ihl] == 0x16) {
+			root_reply = true;
+		}
+	}
 	if (ud.ifp != NULL && len >= ETHER_HDR_LEN && len <= ETHER_MAX_LEN) {
 		mbuf_t m = NULL;
 		if (mbuf_gethdr(MBUF_DONTWAIT, MBUF_TYPE_DATA, &m) == 0 &&
@@ -485,9 +500,17 @@ ud_rx_done(void)
 			stats.packets_in = 1;
 			stats.bytes_in = len;
 			ud.rx_frames++;
-			ifnet_input(ud.ifp, m, &stats);
-		} else if (m != NULL) {
-			mbuf_freem(m);
+			errno_t input_error = ifnet_input(ud.ifp, m, &stats);
+			if (root_reply) {
+				ud.root_rx_logged++;
+				printf("MIAMI ROOT RX: UDP frame len=%u ifnet_input=%d\n", len, input_error);
+			}
+		} else {
+			if (m != NULL) mbuf_freem(m);
+			if (root_reply) {
+				ud.root_rx_logged++;
+				printf("MIAMI ROOT RX: mbuf allocation failed\n");
+			}
 		}
 	}
 	ud_rx_arm();
@@ -807,7 +830,11 @@ ud_root_probe_thread(void *arg __unused, wait_result_t wr __unused)
 			struct iovec out_iov = { .iov_base = request, .iov_len = sizeof(request) };
 			struct msghdr out_msg = { .msg_iov = &out_iov, .msg_iovlen = 1 };
 			size_t sent = 0;
-			(void)sock_send(so, &out_msg, 0, &sent);
+			err = sock_send(so, &out_msg, 0, &sent);
+			if (attempt == 0 || (attempt + 1) % 10 == 0) {
+				printf("MIAMI ROOT PROBE: op=%u attempt=%u send=%d bytes=%lu\n",
+				    operation, attempt + 1, err, (unsigned long)sent);
+			}
 			for (unsigned poll = 0; poll < 20; poll++) {
 				struct iovec in_iov = { .iov_base = response, .iov_len = sizeof(response) };
 				struct msghdr in_msg = { .msg_iov = &in_iov, .msg_iovlen = 1 };
@@ -815,8 +842,15 @@ ud_root_probe_thread(void *arg __unused, wait_result_t wr __unused)
 				size_t received = 0;
 				ud_sleep_ms(100);
 				err = sock_receive(so, &in_msg, MSG_DONTWAIT, &received);
-				if (err != 0 || miami_root_decode_response(response, received,
+				if (err != 0) {
+					if (poll == 19 && (attempt == 0 || (attempt + 1) % 10 == 0))
+						printf("MIAMI ROOT PROBE: receive=%d bytes=%lu\n", err, (unsigned long)received);
+					continue;
+				}
+				if (miami_root_decode_response(response, received,
 				    operation + 1, offset, expected, &payload) != 0) {
+					printf("MIAMI ROOT PROBE: rejected reply bytes=%lu flags=0x%x\n",
+					    (unsigned long)received, in_msg.msg_flags);
 					continue;
 				}
 				if (!operation) {
@@ -857,6 +891,7 @@ ud_thread(void *arg __unused, wait_result_t wr __unused)
 			}
 			int rootprobe = 0;
 			PE_parse_boot_argn("rootprobe", &rootprobe, sizeof(rootprobe));
+			ud.root_diagnostics = rootprobe != 0;
 			if (rootprobe && ud.ifp != NULL &&
 			    kernel_thread_start(ud_root_probe_thread, NULL, &probe_thread) == KERN_SUCCESS) {
 				thread_deallocate(probe_thread);
