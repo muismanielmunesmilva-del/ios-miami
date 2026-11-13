@@ -6,7 +6,7 @@ import tempfile
 
 source = (Path(__file__).resolve().parents[1] / 'xnu/miami_touch.c').read_text()
 start = source.index('static bool\ngeni_transfer(')
-end = source.index('static bool\ngoodix_read(', start)
+end = source.index('static bool\ngeni_cs(', start)
 prefix = r'''
 #include <stdint.h>
 #include <stdbool.h>
@@ -24,6 +24,7 @@ prefix = r'''
 #define M_CMD_DONE 1u
 #define SPI_TX_ONLY 1u
 #define SPI_FULL_DUPLEX (3u << 27)
+#define SPI_FRAGMENTATION (1u << 2)
 #define NSEC_PER_MSEC 1000000
 static unsigned touch_se, touch_fifo_depth=16, txwords, cmd, rxlen_writes, calls, drained;
 static void touch_wr(unsigned b,unsigned r,unsigned v) {
@@ -53,10 +54,10 @@ suffix = r'''
 int main(void) {
     uint8_t tx[8]={0}, rx[8]={0};
     assert(geni_transfer(tx,0,8));
-    assert(cmd==(SPI_TX_ONLY<<27) && rxlen_writes==0 && calls==0);
+    assert(cmd==((SPI_TX_ONLY<<27)|SPI_FRAGMENTATION) && rxlen_writes==0 && calls==0);
     txwords=cmd=rxlen_writes=calls=drained=0;
     assert(geni_transfer(tx,rx,8));
-    assert(cmd==SPI_FULL_DUPLEX && rxlen_writes==1 && calls>0 && rx[7]==7);
+    assert(cmd==(SPI_FULL_DUPLEX|SPI_FRAGMENTATION) && rxlen_writes==1 && calls>0 && rx[7]==7);
     return 0;
 }
 '''

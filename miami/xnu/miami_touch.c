@@ -122,6 +122,9 @@ void miami_touch_init(void);
 #define SPI_RX_ONLY          2u
 #define SPI_TX_RX            3u
 #define SPI_FULL_DUPLEX      (SPI_TX_RX << 27)
+#define SPI_CS_ASSERT        8u
+#define SPI_CS_DEASSERT      9u
+#define SPI_FRAGMENTATION    (1u << 2)
 
 /* Goodix Berlin protocol registers */
 #define GOODIX_FW_VERSION    0x10014u
@@ -435,7 +438,9 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 	if (rx) touch_wr(touch_se, SPI_RX_TRANS_LEN, length);
 
 	/* Goodix SPI writes are TX-only; reads use simultaneous TX/RX. */
-	touch_wr(touch_se, GENI_M_CMD0, rx ? SPI_FULL_DUPLEX : (SPI_TX_ONLY << 27));
+	/* Motorola's FIFO driver keeps CS asserted through each transfer. */
+	touch_wr(touch_se, GENI_M_CMD0,
+	    (rx ? SPI_FULL_DUPLEX : (SPI_TX_ONLY << 27)) | SPI_FRAGMENTATION);
 
 	clock_interval_to_deadline(200, NSEC_PER_MSEC, &deadline);
 	while (mach_absolute_time() < deadline) {
@@ -469,6 +474,44 @@ geni_transfer(const uint8_t *tx, uint8_t *rx, uint32_t length)
 	return false;
 }
 
+/* The Motorola SPI controller asserts/deasserts CS with separate GENI
+ * commands, and uses FRAGMENTATION on the intervening FIFO transfer. */
+static bool
+geni_cs(bool assert_cs)
+{
+	uint64_t deadline;
+	touch_wr(touch_se, GENI_M_IRQ_CLEAR, 0xffffffffu);
+	touch_wr(touch_se, GENI_M_CMD0, (assert_cs ? SPI_CS_ASSERT : SPI_CS_DEASSERT) << 27);
+	clock_interval_to_deadline(200, NSEC_PER_MSEC, &deadline);
+	while (mach_absolute_time() < deadline) {
+		uint32_t status = touch_rd(touch_se, GENI_M_IRQ_STATUS);
+		if (status & M_ERRORS) {
+			printf("MIAMI TOUCH: CS %s error status=%#x\n", assert_cs ? "assert" : "deassert", status);
+			geni_recover();
+			return false;
+		}
+		if (status & M_CMD_DONE) {
+			touch_wr(touch_se, GENI_M_IRQ_CLEAR, status);
+			return true;
+		}
+	}
+	printf("MIAMI TOUCH: CS %s timeout\n", assert_cs ? "assert" : "deassert");
+	geni_recover();
+	return false;
+}
+
+static bool
+geni_transaction(const uint8_t *tx, uint8_t *rx, uint32_t length)
+{
+	int notxfer = 0;
+	(void)PE_parse_boot_argn("touchnoxfer", &notxfer, sizeof(notxfer));
+	if (notxfer) return false;
+	if (!geni_cs(true)) return false;
+	bool transferred = geni_transfer(tx, rx, length);
+	bool released = geni_cs(false);
+	return transferred && released;
+}
+
 static bool
 goodix_read(uint32_t addr, uint8_t *data, uint32_t len)
 {
@@ -486,7 +529,7 @@ goodix_read(uint32_t addr, uint8_t *data, uint32_t len)
 	tx[6] = 0xffu;
 	tx[7] = 0xffu;
 	memset(tx + 8, 0, len);
-	if (!geni_transfer(tx, rx, 8u + len)) {
+	if (!geni_transaction(tx, rx, 8u + len)) {
 		return false;
 	}
 	memcpy(data, rx + 8, len);
@@ -506,7 +549,7 @@ goodix_write(uint32_t addr, const uint8_t *data, uint32_t len)
 	tx[3] = (uint8_t)(addr >> 8);
 	tx[4] = (uint8_t)addr;
 	memcpy(tx + 5, data, len);
-	return geni_transfer(tx, NULL, 5u + len);
+	return geni_transaction(tx, NULL, 5u + len);
 }
 
 static bool
