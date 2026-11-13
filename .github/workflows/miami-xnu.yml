@@ -76,6 +76,8 @@ jobs:
         run: python3 miami/tests/check-apple-bootstrap.py
       - name: Validate read-only dyld cache transport prototype
         run: python3 miami/tests/check-dyld-cache-server.py
+      - name: Validate GPU and WLAN hardware inventory
+        run: python3 miami/tests/check-hardware-fdt.py
       - name: Validate Miami UFS driver invariants
         run: python3 miami/tests/check-ufs.py
       - name: Validate Miami Display, HID, Keys, USB, and Touch subsystems
