@@ -26,6 +26,21 @@ class Client(C.Structure):
 
 
 with tempfile.TemporaryDirectory() as directory:
+    wrapper = Path(directory) / 'bounds.c'
+    wrapper.write_text('#include "remote_root_bounds.h"\n'
+        'int test_bounds(int r, int64_t s, uint32_t n, uint64_t z, uint64_t *o) '
+        '{ return miami_root_block_bounds(r,s,n,z,o); }\n')
+    bounds_file = Path(directory) / 'bounds.so'
+    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-shared', '-fPIC',
+        '-I', str(root / 'xnu'), str(wrapper), '-o', str(bounds_file)], check=True)
+    bounds = C.CDLL(str(bounds_file)).test_bounds
+    bounds.argtypes = [C.c_int, C.c_int64, C.c_uint32, C.c_uint64, C.POINTER(C.c_uint64)]
+    offset = C.c_uint64()
+    assert bounds(1, 2, 1024, 4096, C.byref(offset)) == 0 and offset.value == 1024
+    assert bounds(0, 0, 1, 4096, C.byref(offset)) == 1
+    for sector, length, size in [(-1, 1, 4096), (8, 1, 4096),
+                                 (2**63 - 1, 1, 2**64 - 1), (0, 65537, 131072)]:
+        assert bounds(1, sector, length, size, C.byref(offset)) == 2
     libfile = Path(directory) / "client.so"
     subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
                     str(root / "xnu/remote_root_protocol.c"), str(root / "xnu/remote_root_client.c"),

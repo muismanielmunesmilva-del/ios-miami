@@ -13,6 +13,7 @@
  * - dyldprobe=1: test a bounded read of the cache header over USB Ethernet
  * - rootprobe=1: test read-only remote block protocol against a host image
  * - rootstream=1: test bounded multi-chunk reads using the remote-root client
+ * - rootblock=1: register the experimental read-only USB block device
  */
 #if defined(ARM64_BOARD_CONFIG_MIAMI)
 #include <sys/param.h>
@@ -47,6 +48,7 @@
 extern vm_offset_t ml_io_map(vm_offset_t, vm_size_t);
 extern ppnum_t pmap_find_phys(pmap_t pmap, addr64_t va);
 void miami_usb_probe(void);
+extern int miami_remote_block_start(const struct miami_root_client *client);
 static void miami_usb_gadget_start(vm_offset_t dwc);
 
 #define DWC3_PA                 0x04e00000u
@@ -853,6 +855,13 @@ ud_root_stream_thread(void *arg __unused, wait_result_t wr __unused)
 		printf("MIAMI ROOT STREAM: HFS signature mismatch\n");
 	} else {
 		printf("MIAMI ROOT STREAM: 4096-byte multi-chunk HFS read verified\n");
+		int rootblock = 0;
+		PE_parse_boot_argn("rootblock", &rootblock, sizeof(rootblock));
+		if (rootblock) {
+			int block_error = miami_remote_block_start(&client);
+			if (!block_error) return; /* worker owns the connected socket */
+			printf("MIAMI ROOT BLOCK: registration failed %d\n", block_error);
+		}
 	}
 	sock_close(so);
 }

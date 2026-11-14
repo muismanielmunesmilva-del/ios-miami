@@ -128,6 +128,9 @@ def check(source, helper, pthread, bearssl, hfs):
     for name in ('remote_root_client.c', 'remote_root_client.h'):
         assert (source / 'bsd/dev' / name).read_bytes() == (ROOT / 'xnu' / name).read_bytes()
     assert (source / 'bsd/conf/files').read_text().count('bsd/dev/remote_root_client.c') == 1
+    assert (source / 'bsd/dev/remote_root_block.c').read_bytes() == (ROOT / 'xnu/remote_root_block.c').read_bytes()
+    assert (source / 'bsd/dev/remote_root_bounds.h').read_bytes() == (ROOT / 'xnu/remote_root_bounds.h').read_bytes()
+    assert (source / 'bsd/conf/files').read_text().count('bsd/dev/remote_root_block.c') == 1
     for name in ('osfmk/arm64/start.s', 'osfmk/arm64/arm_vm_init.c', 'osfmk/arm64/miami_early.c'):
         assert '0x9c000000' not in (source / name).read_text().lower()
     server = (source / 'iokit/Kernel/IOUserServer.cpp').read_text()
