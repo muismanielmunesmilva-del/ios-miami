@@ -24,6 +24,7 @@ _start:
     and x9, x9, #~15
     mov sp, x9
     mov x24, #0               /* optional read-only mount has not run */
+    mov x26, #0               /* synthetic root unless real-root node exists */
     adr x0, console_path
     mov x1, #2
     mov x2, #0
@@ -175,7 +176,15 @@ mount_probe:
     mov x2, #0
     mov x16, #SYS_open
     svc #0x80
+    b.cc mount_device_found
+    adr x0, real_device
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
     b.cs mount_return
+    mov x26, #1
+mount_device_found:
     mov x16, #SYS_close
     svc #0x80
     mov x24, #1
@@ -185,6 +194,9 @@ mount_probe:
     stp xzr, xzr, [sp, #32]
     stp xzr, xzr, [sp, #48]
     adr x9, mount_device
+    cbz x26, mount_arg_ready
+    adr x9, real_device
+mount_arg_ready:
     str x9, [sp]               /* hfs_mount_args.fspec */
     adr x0, mount_type
     adr x1, mount_path
@@ -198,6 +210,7 @@ mount_probe:
     adr x2, mount_ok_end
     sub x2, x2, x1
     bl write_all
+    cbnz x26, real_root_probe
     adr x0, mounted_marker
     mov x1, #0
     mov x2, #0
@@ -297,6 +310,118 @@ mount_failed:
 mount_return:
     ldp x25, x30, [sp], #16
 mount_return_fast:
+    ret
+/* The real-root test validates file headers without executing Apple binaries. */
+real_root_probe:
+    adr x0, real_dyld
+    bl real_check_macho
+    cbnz x0, real_files_failed
+    adr x0, real_launchd
+    bl real_check_macho
+    cbnz x0, real_files_failed
+    adr x1, real_files_ok
+    adr x2, real_files_ok_end
+    sub x2, x2, x1
+    bl write_all
+    adr x0, real_cache
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs real_cache_failed
+    mov x25, x0
+    sub sp, sp, #16
+    mov x0, x25
+    mov x1, sp
+    mov x2, #16
+    mov x16, #SYS_read
+    svc #0x80
+    b.cs real_cache_close_failed
+    cmp x0, #16
+    b.ne real_cache_close_failed
+    adr x9, real_cache_magic
+    ldp x10, x11, [sp]
+    ldp x12, x13, [x9]
+    cmp x10, x12
+    b.ne real_cache_close_failed
+    cmp x11, x13
+    b.ne real_cache_close_failed
+    add sp, sp, #16
+    mov x0, x25
+    mov x16, #SYS_close
+    svc #0x80
+    adr x1, real_cache_ok
+    adr x2, real_cache_ok_end
+    sub x2, x2, x1
+    bl write_all
+    adr x0, real_launchd
+    mov x1, #1
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cc mount_write_unexpected
+    cmp x0, #30
+    b.ne mount_write_failed
+    adr x1, mount_ro_ok
+    adr x2, mount_ro_ok_end
+    sub x2, x2, x1
+    bl write_all
+    b mount_return
+real_cache_close_failed:
+    add sp, sp, #16
+    mov x0, x25
+    mov x16, #SYS_close
+    svc #0x80
+real_cache_failed:
+    adr x1, real_cache_error
+    adr x2, real_cache_error_end
+    sub x2, x2, x1
+    bl write_all
+    b mount_return
+real_files_failed:
+    adr x1, real_files_error
+    adr x2, real_files_error_end
+    sub x2, x2, x1
+    bl write_all
+    b mount_return
+/* x0 = pathname; x0 returns zero for an arm64 Mach-O magic. */
+real_check_macho:
+    stp x25, x30, [sp, #-16]!
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs real_macho_fail
+    mov x25, x0
+    sub sp, sp, #16
+    mov x0, x25
+    mov x1, sp
+    mov x2, #4
+    mov x16, #SYS_read
+    svc #0x80
+    b.cs real_macho_close_fail
+    cmp x0, #4
+    b.ne real_macho_close_fail
+    ldr w9, [sp]
+    mov w10, #0xfacf
+    movk w10, #0xfeed, lsl #16
+    cmp w9, w10
+    b.ne real_macho_close_fail
+    add sp, sp, #16
+    mov x0, x25
+    mov x16, #SYS_close
+    svc #0x80
+    mov x0, #0
+    b real_macho_done
+real_macho_close_fail:
+    add sp, sp, #16
+    mov x0, x25
+    mov x16, #SYS_close
+    svc #0x80
+real_macho_fail:
+    mov x0, #1
+real_macho_done:
+    ldp x25, x30, [sp], #16
     ret
 hfs_probe:
     /* Optional secondary file check on HFS+ root (/etc/miami-root).
@@ -591,12 +716,22 @@ root_marker_expected:
     .ascii "MIAMI HFS+ ROOT OK\n"
 mount_device:
     .asciz "/dev/miamiusbmount0"
+real_device:
+    .asciz "/dev/miamiusbios0"
 mount_type:
     .asciz "hfs"
 mount_path:
     .asciz "/etc"
 mounted_marker:
     .asciz "/etc/etc/miami-root"
+real_dyld:
+    .asciz "/etc/usr/lib/dyld"
+real_launchd:
+    .asciz "/etc/sbin/launchd"
+real_cache:
+    .asciz "/etc/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64"
+real_cache_magic:
+    .ascii "dyld_v1   arm64\0"
 mount_hex_digits:
     .ascii "0123456789abcdef"
 mount_ok:
@@ -617,6 +752,18 @@ mount_marker_error_end:
 mount_ro_error:
     .ascii "MIAMI ROOT MOUNT: write-open check failed\n"
 mount_ro_error_end:
+real_files_ok:
+    .ascii "MIAMI IOS ROOT: dyld and launchd Mach-O magic verified\n"
+real_files_ok_end:
+real_files_error:
+    .ascii "MIAMI IOS ROOT: dyld or launchd read failed\n"
+real_files_error_end:
+real_cache_ok:
+    .ascii "MIAMI IOS ROOT: dyld cache header verified\n"
+real_cache_ok_end:
+real_cache_error:
+    .ascii "MIAMI IOS ROOT: dyld cache read failed\n"
+real_cache_error_end:
 hello:
     .ascii "\n*** MIAMI USERSPACE: PID=1 (getpid verified) ***\n"
 hello_end:
