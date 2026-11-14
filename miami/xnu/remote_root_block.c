@@ -12,6 +12,7 @@
 #include <kern/clock.h>
 #include <kern/thread.h>
 #include <kern/sched_prim.h>
+#include <pexpert/pexpert.h>
 #include "remote_root_client.h"
 #include "remote_root_bounds.h"
 
@@ -166,15 +167,18 @@ miami_remote_block_start(const struct miami_root_client *client)
 	rb.client = *client;
 	rb.major = bdevsw_add(-1, &root_block_bdevsw);
 	if (rb.major < 0) return ENXIO;
+	int mount_test = 0;
+	PE_parse_boot_argn("rootmount", &mount_test, sizeof(mount_test));
+	const char *name = mount_test ? "miamiusbmount0" : "miamiusbroot0";
 	void *node = devfs_make_node(makedev(rb.major, 0), DEVFS_BLOCK,
-	    UID_ROOT, GID_OPERATOR, 0440, "miamiusbroot0");
+	    UID_ROOT, GID_OPERATOR, 0440, "%s", name);
 	if (!node) { bdevsw_remove(rb.major, &root_block_bdevsw); return ENXIO; }
 	if (kernel_thread_start(root_block_worker, NULL, &worker) != KERN_SUCCESS) {
 		devfs_remove(node); bdevsw_remove(rb.major, &root_block_bdevsw); return ENOMEM;
 	}
 	thread_deallocate(worker);
 	rb.ready = true;
-	printf("MIAMI ROOT BLOCK: read-only miamiusbroot0 registered\n");
+	printf("MIAMI ROOT BLOCK: read-only %s registered\n", name);
 	if (kernel_thread_start(root_block_test, NULL, &test) == KERN_SUCCESS) thread_deallocate(test);
 	else printf("MIAMI ROOT BLOCK: could not start strategy test\n");
 	return 0;

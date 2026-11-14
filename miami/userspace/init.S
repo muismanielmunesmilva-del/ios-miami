@@ -8,6 +8,7 @@
 #define SYS_close 6
 #define SYS_getpid 20
 #define SYS_select 93
+#define SYS_mount 167
 #define SYS_csops 169
 #define SYS_mmap 197
 #define SYS_psynch_cvsignal 304
@@ -22,6 +23,7 @@ _start:
     mov x9, sp
     and x9, x9, #~15
     mov sp, x9
+    mov x24, #0               /* optional read-only mount has not run */
     adr x0, console_path
     mov x1, #2
     mov x2, #0
@@ -161,6 +163,141 @@ amfi_no_sp_failed:
     sub x2, x2, x1
     bl write_all
     b tick
+/* The special device name exists only with the rootmount=1 diagnostic.
+ * Mount over the synthetic RAM root's /etc after its initial marker check.
+ * The server image and the block driver both independently reject writes.
+ */
+mount_probe:
+    cbnz x24, mount_return_fast
+    stp x25, x30, [sp, #-16]!
+    adr x0, mount_device
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs mount_return
+    mov x16, #SYS_close
+    svc #0x80
+    mov x24, #1
+    sub sp, sp, #64
+    stp xzr, xzr, [sp]
+    stp xzr, xzr, [sp, #16]
+    stp xzr, xzr, [sp, #32]
+    stp xzr, xzr, [sp, #48]
+    adr x9, mount_device
+    str x9, [sp]               /* hfs_mount_args.fspec */
+    adr x0, mount_type
+    adr x1, mount_path
+    mov x2, #1                 /* MNT_RDONLY */
+    mov x3, sp
+    mov x16, #SYS_mount
+    svc #0x80
+    add sp, sp, #64
+    b.cs mount_failed
+    adr x1, mount_ok
+    adr x2, mount_ok_end
+    sub x2, x2, x1
+    bl write_all
+    adr x0, mounted_marker
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs mount_marker_failed
+    mov x25, x0
+    sub sp, sp, #32
+    mov x0, x25
+    mov x1, sp
+    mov x2, #19
+    mov x16, #SYS_read
+    svc #0x80
+    b.cs mount_read_failed
+    cmp x0, #19
+    b.ne mount_read_failed
+    adr x10, root_marker_expected
+    ldr x11, [sp]
+    ldr x12, [x10]
+    cmp x11, x12
+    b.ne mount_read_failed
+    ldr x11, [sp, #8]
+    ldr x12, [x10, #8]
+    cmp x11, x12
+    b.ne mount_read_failed
+    ldrh w11, [sp, #16]
+    ldrh w12, [x10, #16]
+    cmp w11, w12
+    b.ne mount_read_failed
+    ldrb w11, [sp, #18]
+    ldrb w12, [x10, #18]
+    cmp w11, w12
+    b.ne mount_read_failed
+    add sp, sp, #32
+    mov x0, x25
+    mov x16, #SYS_close
+    svc #0x80
+    adr x1, mount_marker_ok
+    adr x2, mount_marker_ok_end
+    sub x2, x2, x1
+    bl write_all
+    adr x0, mounted_marker
+    mov x1, #1                 /* O_WRONLY; no write is issued */
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cc mount_write_unexpected
+    cmp x0, #30                /* EROFS */
+    b.ne mount_write_failed
+    adr x1, mount_ro_ok
+    adr x2, mount_ro_ok_end
+    sub x2, x2, x1
+    bl write_all
+    b mount_return
+mount_write_unexpected:
+    mov x16, #SYS_close
+    svc #0x80
+mount_write_failed:
+    adr x1, mount_ro_error
+    adr x2, mount_ro_error_end
+    sub x2, x2, x1
+    bl write_all
+    b mount_return
+mount_read_failed:
+    add sp, sp, #32
+    mov x0, x25
+    mov x16, #SYS_close
+    svc #0x80
+mount_marker_failed:
+    adr x1, mount_marker_error
+    adr x2, mount_marker_error_end
+    sub x2, x2, x1
+    bl write_all
+    b mount_return
+mount_failed:
+    mov x25, x0
+    adr x1, mount_error
+    adr x2, mount_error_end
+    sub x2, x2, x1
+    bl write_all
+    /* Print the low byte of errno in hexadecimal. */
+    sub sp, sp, #16
+    adr x9, mount_hex_digits
+    lsr x10, x25, #4
+    and x10, x10, #15
+    ldrb w11, [x9, x10]
+    strb w11, [sp]
+    and x10, x25, #15
+    ldrb w11, [x9, x10]
+    strb w11, [sp, #1]
+    mov w11, #10
+    strb w11, [sp, #2]
+    mov x1, sp
+    mov x2, #3
+    bl write_all
+    add sp, sp, #16
+mount_return:
+    ldp x25, x30, [sp], #16
+mount_return_fast:
+    ret
 hfs_probe:
     /* Optional secondary file check on HFS+ root (/etc/miami-root).
      * On single-binary mockfs, open returns ENOTDIR/ENOENT and is skipped.
@@ -414,6 +551,7 @@ tick:
     adr x2, heartbeat_end
     sub x2, x2, x1
     bl write_all
+    bl mount_probe
     b tick
 wrong_pid:
     adr x1, error_pid
@@ -451,6 +589,34 @@ root_marker_path:
     .asciz "/etc/miami-root"
 root_marker_expected:
     .ascii "MIAMI HFS+ ROOT OK\n"
+mount_device:
+    .asciz "/dev/miamiusbmount0"
+mount_type:
+    .asciz "hfs"
+mount_path:
+    .asciz "/etc"
+mounted_marker:
+    .asciz "/etc/etc/miami-root"
+mount_hex_digits:
+    .ascii "0123456789abcdef"
+mount_ok:
+    .ascii "MIAMI ROOT MOUNT: HFS mounted read-only\n"
+mount_ok_end:
+mount_marker_ok:
+    .ascii "MIAMI ROOT MOUNT: remote marker verified\n"
+mount_marker_ok_end:
+mount_ro_ok:
+    .ascii "MIAMI ROOT MOUNT: write open rejected EROFS\n"
+mount_ro_ok_end:
+mount_error:
+    .ascii "MIAMI ROOT MOUNT: mount failed errno=0x"
+mount_error_end:
+mount_marker_error:
+    .ascii "MIAMI ROOT MOUNT: marker read failed\n"
+mount_marker_error_end:
+mount_ro_error:
+    .ascii "MIAMI ROOT MOUNT: write-open check failed\n"
+mount_ro_error_end:
 hello:
     .ascii "\n*** MIAMI USERSPACE: PID=1 (getpid verified) ***\n"
 hello_end:
