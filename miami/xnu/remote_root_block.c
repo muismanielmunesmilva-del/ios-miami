@@ -122,10 +122,9 @@ root_block_worker(void *arg __unused, wait_result_t wr __unused)
 			thread_block(THREAD_CONTINUE_NULL);
 			continue;
 		}
-		caddr_t addr = (caddr_t)buf_dataptr(bp);
-		bool mapped = false;
-		int error = 0;
-		if (addr == NULL) { error = buf_map(bp, &addr); mapped = error == 0; }
+		caddr_t addr = NULL;
+		int error = buf_map(bp, &addr);
+		bool mapped = error == 0;
 		if (!error && addr == NULL) error = EIO;
 		if (!error && miami_root_read(&rb.client,
 		    (uint64_t)buf_blkno(bp) * ROOT_BLOCK_SECTOR,
