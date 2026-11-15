@@ -187,6 +187,16 @@ mount_probe:
     mov x16, #SYS_open
     svc #0x80
     b.cc mount_device_found
+    adr x0, real_pid1_device
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs mount_try_exec
+    mov x23, #2
+    mov x26, #1
+    b mount_device_found
+mount_try_exec:
     adr x0, real_exec_device
     mov x1, #0
     mov x2, #0
@@ -216,6 +226,11 @@ mount_device_found:
     adr x9, mount_device
     cbz x26, mount_arg_ready
     cbz x23, mount_real_arg
+    cmp x23, #2
+    b.ne mount_exec_arg
+    adr x9, real_pid1_device
+    b mount_arg_ready
+mount_exec_arg:
     adr x9, real_exec_device
     b mount_arg_ready
 mount_real_arg:
@@ -400,6 +415,8 @@ real_root_probe:
     sub x2, x2, x1
     bl write_all
     cbz x23, mount_return
+    cmp x23, #2
+    b.eq launchd_pid1
     bl launchd_child_start
     b mount_return
 real_cache_close_failed:
@@ -446,6 +463,11 @@ launchd_fork_failed:
     bl write_all
     ldp x29, x30, [sp], #16
     ret
+launchd_pid1:
+    adr x1, launchd_pid1_message
+    adr x2, launchd_pid1_message_end
+    sub x2, x2, x1
+    bl write_all
 launchd_child:
     /* Inherit the already-open diagnostic console across chroot and exec. */
     mov x0, x19
@@ -507,6 +529,9 @@ launchd_child_fail:
     mov x2, #3
     bl write_all
     add sp, sp, #16
+    /* Never exit PID 1 if chroot or exec fails: retain the console. */
+    cmp x23, #2
+    b.eq mount_return
     mov x0, #126
     mov x16, #SYS_exit
     svc #0x80
@@ -898,6 +923,8 @@ real_device:
     .asciz "/dev/miamiusbios0"
 real_exec_device:
     .asciz "/dev/miamiusbexec0"
+real_pid1_device:
+    .asciz "/dev/miamiusbpid10"
 mount_type:
     .asciz "hfs"
 mount_path:
@@ -919,6 +946,9 @@ launchd_exec_path:
 launchd_parent_started:
     .ascii "MIAMI LAUNCHD: child started; PID1 remains diagnostic\n"
 launchd_parent_started_end:
+launchd_pid1_message:
+    .ascii "MIAMI LAUNCHD: replacing diagnostic PID1\n"
+launchd_pid1_message_end:
 launchd_fork_error:
     .ascii "MIAMI LAUNCHD: fork failed\n"
 launchd_fork_error_end:
