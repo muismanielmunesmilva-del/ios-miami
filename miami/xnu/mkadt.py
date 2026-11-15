@@ -39,14 +39,19 @@ def node(name, props=(), children=()):
     return result
 
 
-def build(seed=None, include_ufs=False):
+def build(seed=None, include_ufs=False, allow_unrestricted_fs=False):
     seed = os.urandom(64) if seed is None else seed
     if len(seed) != 64:
         raise ValueError('Expected a fresh 64-byte kernel random seed')
+    chosen_children = [node('memory-map')]
+    if allow_unrestricted_fs:
+        # Experimental local boot policy: CSR_ALLOW_UNRESTRICTED_FS only.
+        # This is not Apple trust-cache or signature verification.
+        chosen_children.append(node('asmb', [('lp-sip0', u64(2))]))
     chosen = node('chosen', [('dram-base', u64(RAM_BASE)), ('dram-size', u64(RAM_SIZE)),
                   ('random-seed', seed), ('debug-enabled', u32(1)),
                   ('embedded-panic-log-size', u32(PANIC_SIZE)),
-                  ('firmware-version', cstr('miami-loader'))], [node('memory-map')])
+                  ('firmware-version', cstr('miami-loader'))], chosen_children)
     cpu = node('cpu0', [('device_type', cstr('cpu')), ('compatible', cstr(BOOT_CPU_COMPAT) + cstr('ARM,v8')),
                ('reg', u32(0)), ('cpu-id', u32(0)), ('cluster-id', u32(0)),
                ('cluster-type', u32(0)), ('die-cluster-id', u32(0)),

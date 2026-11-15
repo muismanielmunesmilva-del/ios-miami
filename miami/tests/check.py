@@ -220,6 +220,14 @@ def check(dtc, live_fdt=None):
         assert all('ufs' not in c.name and 'usb' not in c.name for c in root.children)
         encoded = adt.serialize(root)
         assert adt.parse(encoded)[1] == len(encoded)
+        chosen = next(c for c in root.children if c.name == 'chosen')
+        assert all(c.name != 'asmb' for c in chosen.children)
+        experimental = mkadt.build(seed=bytes(range(64)), allow_unrestricted_fs=True)
+        roundtrip, end = adt.parse(adt.serialize(experimental))
+        assert end == len(adt.serialize(experimental))
+        chosen = next(c for c in roundtrip.children if c.name == 'chosen')
+        asmb = next(c for c in chosen.children if c.name == 'asmb')
+        assert asmb.prop('lp-sip0') == struct.pack('<Q', 2)
 
         def compile_dts(text, name):
             source, output = temp / (name + '.dts'), temp / (name + '.dtb')
