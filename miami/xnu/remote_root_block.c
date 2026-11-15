@@ -18,7 +18,6 @@
 
 #define ROOT_BLOCK_SECTOR 512u
 #define ROOT_BLOCK_QUEUE 16u
-#define ROOT_BLOCK_MAX_IO 65536u
 
 static LCK_GRP_DECLARE(root_block_group, "miami_root_block");
 static LCK_SPIN_DECLARE(root_block_lock, &root_block_group);
@@ -64,7 +63,11 @@ root_block_strategy(buf_t bp)
 	    sector, count, rb.client.image_size, &offset);
 	if (validity == 1) { root_block_finish(bp, EROFS); return; }
 	if (!rb.ready) { root_block_finish(bp, ENXIO); return; }
-	if (validity != 0) { root_block_finish(bp, EINVAL); return; }
+	if (validity != 0) {
+		printf("MIAMI ROOT BLOCK: invalid read sector=%lld bytes=%u\n", (long long)sector, count);
+		root_block_finish(bp, EINVAL);
+		return;
+	}
 	if (count == 0) { root_block_finish(bp, 0); return; }
 	lck_spin_lock(&root_block_lock);
 	if (rb.count == ROOT_BLOCK_QUEUE) {
@@ -87,7 +90,7 @@ root_block_ioctl(__unused dev_t dev, u_long cmd, caddr_t data,
 	case DKIOCSETBLOCKSIZE: return *(uint32_t *)data == ROOT_BLOCK_SECTOR ? 0 : EINVAL;
 	case DKIOCGETBLOCKCOUNT: *(uint64_t *)data = rb.client.image_size / ROOT_BLOCK_SECTOR; return 0;
 	case DKIOCISWRITABLE: *(uint32_t *)data = 0; return 0;
-	case DKIOCGETMAXBLOCKCOUNTREAD: *(uint64_t *)data = ROOT_BLOCK_MAX_IO / ROOT_BLOCK_SECTOR; return 0;
+	case DKIOCGETMAXBLOCKCOUNTREAD: *(uint64_t *)data = MIAMI_ROOT_BLOCK_MAX_IO / ROOT_BLOCK_SECTOR; return 0;
 	case DKIOCGETMAXBLOCKCOUNTWRITE: *(uint64_t *)data = 0; return 0;
 	default: return ENOTTY;
 	}
@@ -130,6 +133,8 @@ root_block_worker(void *arg __unused, wait_result_t wr __unused)
 		if (!error && miami_root_read(&rb.client,
 		    (uint64_t)buf_blkno(bp) * ROOT_BLOCK_SECTOR,
 		    (uint8_t *)addr, buf_count(bp)) != 0) error = EIO;
+		if (error) printf("MIAMI ROOT BLOCK: read failed sector=%lld bytes=%u error=%d\n",
+		    (long long)buf_blkno(bp), buf_count(bp), error);
 		if (mapped) (void)buf_unmap(bp);
 		if (!error) buf_setresid(bp, 0);
 		root_block_finish(bp, error);

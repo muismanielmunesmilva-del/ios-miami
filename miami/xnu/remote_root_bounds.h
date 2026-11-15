@@ -2,13 +2,16 @@
 #define MIAMI_REMOTE_ROOT_BOUNDS_H
 #include <stdint.h>
 
+/* XNU MAXBSIZE and HFS bitmap scans can reach 1 MiB. */
+#define MIAMI_ROOT_BLOCK_MAX_IO (1024u * 1024u)
+
 /* Return 0 only for a bounded, read-only request. */
 static inline int
 miami_root_block_bounds(int is_read, int64_t sector, uint32_t count,
     uint64_t image_size, uint64_t *offset)
 {
     if (!is_read) return 1;
-    if (!offset || sector < 0 || (uint64_t)sector > UINT64_MAX / 512u || count > 65536u)
+    if (!offset || sector < 0 || (uint64_t)sector > UINT64_MAX / 512u || count > MIAMI_ROOT_BLOCK_MAX_IO)
         return 2;
     uint64_t pos = (uint64_t)sector * 512u;
     if (pos > image_size || count > image_size - pos) return 2;

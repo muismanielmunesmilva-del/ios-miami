@@ -37,9 +37,11 @@ with tempfile.TemporaryDirectory() as directory:
     bounds.argtypes = [C.c_int, C.c_int64, C.c_uint32, C.c_uint64, C.POINTER(C.c_uint64)]
     offset = C.c_uint64()
     assert bounds(1, 2, 1024, 4096, C.byref(offset)) == 0 and offset.value == 1024
+    assert bounds(1, 8, 256 * 1024, 2 * 1024 * 1024, C.byref(offset)) == 0 and offset.value == 4096
+    assert bounds(1, 0, 1024 * 1024, 1024 * 1024, C.byref(offset)) == 0
     assert bounds(0, 0, 1, 4096, C.byref(offset)) == 1
     for sector, length, size in [(-1, 1, 4096), (8, 1, 4096),
-                                 (2**63 - 1, 1, 2**64 - 1), (0, 65537, 131072)]:
+                                 (2**63 - 1, 1, 2**64 - 1), (0, 1024 * 1024 + 1, 2 * 1024 * 1024)]:
         assert bounds(1, sector, length, size, C.byref(offset)) == 2
     libfile = Path(directory) / "client.so"
     subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
@@ -48,7 +50,7 @@ with tempfile.TemporaryDirectory() as directory:
     lib = C.CDLL(str(libfile))
     lib.miami_root_query_size.argtypes = [C.POINTER(Client)]
     lib.miami_root_read.argtypes = [C.POINTER(Client), C.c_uint64, ptr, C.c_size_t]
-    image = bytes(range(256)) * 16
+    image = bytes(range(256)) * 1280
     path = Path(directory) / "image"
     path.write_bytes(image)
     fd = os.open(path, os.O_RDONLY)
@@ -84,6 +86,9 @@ with tempfile.TemporaryDirectory() as directory:
         out = (byte * 2500)()
         assert lib.miami_root_read(C.byref(client), 507, out, len(out)) == 0
         assert bytes(out) == image[507:3007]
+        bitmap = (byte * (256 * 1024))()
+        assert lib.miami_root_read(C.byref(client), 4096, bitmap, len(bitmap)) == 0
+        assert bytes(bitmap) == image[4096:4096 + len(bitmap)]
         before = sends[0]
         assert lib.miami_root_read(C.byref(client), len(image) - 1, out, 2) == -1
         assert sends[0] == before
