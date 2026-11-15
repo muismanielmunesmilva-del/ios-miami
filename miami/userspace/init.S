@@ -2,11 +2,18 @@
  * Based on ios-sweet tools/sweet-init.S. Align SP before all stack accesses.
  * All mutable data is on the process stack. Never exits PID1.
  */
+#define SYS_exit 1
+#define SYS_fork 2
 #define SYS_read 3
 #define SYS_write 4
 #define SYS_open 5
 #define SYS_close 6
+#define SYS_wait4 7
+#define SYS_chdir 12
 #define SYS_getpid 20
+#define SYS_execve 59
+#define SYS_chroot 61
+#define SYS_dup2 90
 #define SYS_select 93
 #define SYS_mount 167
 #define SYS_csops 169
@@ -164,6 +171,7 @@ amfi_no_sp_failed:
     adr x2, amfi_error_end
     sub x2, x2, x1
     bl write_all
+    mov x28, #0
     b tick
 /* The special device name exists only with the rootmount=1 diagnostic.
  * Mount over the synthetic RAM root's /etc after its initial marker check.
@@ -172,12 +180,23 @@ amfi_no_sp_failed:
 mount_probe:
     cbnz x24, mount_return_fast
     stp x25, x30, [sp, #-16]!
+    mov x23, #0              /* real launchd execution is opt-in */
     adr x0, mount_device
     mov x1, #0
     mov x2, #0
     mov x16, #SYS_open
     svc #0x80
     b.cc mount_device_found
+    adr x0, real_exec_device
+    mov x1, #0
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs mount_try_real
+    mov x23, #1
+    mov x26, #1
+    b mount_device_found
+mount_try_real:
     adr x0, real_device
     mov x1, #0
     mov x2, #0
@@ -196,6 +215,10 @@ mount_device_found:
     stp xzr, xzr, [sp, #48]
     adr x9, mount_device
     cbz x26, mount_arg_ready
+    cbz x23, mount_real_arg
+    adr x9, real_exec_device
+    b mount_arg_ready
+mount_real_arg:
     adr x9, real_device
 mount_arg_ready:
     str x9, [sp]               /* hfs_mount_args.fspec */
@@ -376,6 +399,8 @@ real_root_probe:
     adr x2, mount_ro_ok_end
     sub x2, x2, x1
     bl write_all
+    cbz x23, mount_return
+    bl launchd_child_start
     b mount_return
 real_cache_close_failed:
     add sp, sp, #16
@@ -394,6 +419,141 @@ real_files_failed:
     sub x2, x2, x1
     bl write_all
     b mount_return
+
+/* Run the unmodified Apple launchd as a child, never replacing diagnostic PID 1.
+ * Fork's x1 return flag is 1 in the child on XNU arm64 (thread_set_child).
+ * The child roots all absolute dyld/cache lookups at the read-only remote mount.
+ */
+launchd_child_start:
+    stp x29, x30, [sp, #-16]!
+    mov x28, #0
+    mov x1, #0
+    mov x16, #SYS_fork
+    svc #0x80
+    cbnz x1, launchd_child
+    b.cs launchd_fork_failed
+    mov x28, x0
+    adr x1, launchd_parent_started
+    adr x2, launchd_parent_started_end
+    sub x2, x2, x1
+    bl write_all
+    ldp x29, x30, [sp], #16
+    ret
+launchd_fork_failed:
+    adr x1, launchd_fork_error
+    adr x2, launchd_fork_error_end
+    sub x2, x2, x1
+    bl write_all
+    ldp x29, x30, [sp], #16
+    ret
+launchd_child:
+    /* Inherit the already-open diagnostic console across chroot and exec. */
+    mov x0, x19
+    mov x1, #1
+    mov x16, #SYS_dup2
+    svc #0x80
+    b.cs launchd_child_fail
+    mov x0, x19
+    mov x1, #2
+    mov x16, #SYS_dup2
+    svc #0x80
+    b.cs launchd_child_fail
+    adr x1, launchd_child_chroot
+    adr x2, launchd_child_chroot_end
+    sub x2, x2, x1
+    bl write_all
+    adr x0, mount_path
+    mov x16, #SYS_chroot
+    svc #0x80
+    b.cs launchd_child_fail
+    adr x0, launchd_root_path
+    mov x16, #SYS_chdir
+    svc #0x80
+    b.cs launchd_child_fail
+    adr x1, launchd_child_exec
+    adr x2, launchd_child_exec_end
+    sub x2, x2, x1
+    bl write_all
+    sub sp, sp, #32
+    adr x9, launchd_exec_path
+    str x9, [sp]
+    str xzr, [sp, #8]
+    str xzr, [sp, #16]       /* empty environment */
+    mov x0, x9
+    mov x1, sp
+    add x2, sp, #16
+    mov x16, #SYS_execve
+    svc #0x80
+    add sp, sp, #32
+    /* Successful exec never returns. Print the errno byte and exit child. */
+launchd_child_fail:
+    mov x25, x0
+    adr x1, launchd_child_error
+    adr x2, launchd_child_error_end
+    sub x2, x2, x1
+    bl write_all
+    sub sp, sp, #16
+    adr x9, mount_hex_digits
+    lsr x10, x25, #4
+    and x10, x10, #15
+    ldrb w11, [x9, x10]
+    strb w11, [sp]
+    and x10, x25, #15
+    ldrb w11, [x9, x10]
+    strb w11, [sp, #1]
+    mov w11, #10
+    strb w11, [sp, #2]
+    mov x1, sp
+    mov x2, #3
+    bl write_all
+    add sp, sp, #16
+    mov x0, #126
+    mov x16, #SYS_exit
+    svc #0x80
+    b launchd_child_fail
+
+/* Reap a finished child without blocking heartbeat or starting it twice. */
+launchd_child_poll:
+    cbz x28, launchd_poll_return
+    stp x25, x30, [sp, #-16]!
+    sub sp, sp, #16
+    str wzr, [sp]
+    mov x0, x28
+    mov x1, sp
+    mov x2, #1              /* WNOHANG */
+    mov x3, #0
+    mov x16, #SYS_wait4
+    svc #0x80
+    b.cs launchd_poll_done
+    cbz x0, launchd_poll_done
+    ldr w25, [sp]
+    mov x28, #0
+    adr x1, launchd_child_status
+    adr x2, launchd_child_status_end
+    sub x2, x2, x1
+    bl write_all
+    adr x9, mount_hex_digits
+    mov x10, #0
+launchd_status_hex:
+    mov x11, #28
+    sub x11, x11, x10, lsl #2
+    lsr w12, w25, w11
+    and w12, w12, #15
+    ldrb w12, [x9, x12]
+    strb w12, [sp, x10]
+    add x10, x10, #1
+    cmp x10, #8
+    b.ne launchd_status_hex
+    mov w12, #10
+    strb w12, [sp, #8]
+    mov x1, sp
+    mov x2, #9
+    bl write_all
+launchd_poll_done:
+    add sp, sp, #16
+    ldp x25, x30, [sp], #16
+launchd_poll_return:
+    ret
 /* x0 = pathname; x0 returns zero for an arm64 Mach-O magic. */
 real_check_macho:
     stp x25, x30, [sp, #-16]!
@@ -501,8 +661,10 @@ hfs_no_sp_fail:
     adr x2, hfs_error_end
     sub x2, x2, x1
     bl write_all
+    mov x28, #0
     b tick
 psynch_test:
+    mov x28, #0              /* no launchd child until the remote root is ready */
     /* Exercise the pthread wait queue with a bounded timeout and no mutex.
      * Darwin's psynch_cvwait accepts 8 arguments in x0..x7. A sequence of
      * one increment and a private, stack-backed condition value reaches
@@ -687,6 +849,7 @@ tick:
     sub x2, x2, x1
     bl write_all
     bl mount_probe
+    bl launchd_child_poll
     cbz x27, tick
     adr x1, real_summary_ok
     adr x2, real_summary_ok_end
@@ -733,6 +896,8 @@ mount_device:
     .asciz "/dev/miamiusbmount0"
 real_device:
     .asciz "/dev/miamiusbios0"
+real_exec_device:
+    .asciz "/dev/miamiusbexec0"
 mount_type:
     .asciz "hfs"
 mount_path:
@@ -747,6 +912,28 @@ real_cache:
     .asciz "/etc/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64"
 real_cache_magic:
     .ascii "dyld_v1   arm64\0"
+launchd_root_path:
+    .asciz "/"
+launchd_exec_path:
+    .asciz "/sbin/launchd"
+launchd_parent_started:
+    .ascii "MIAMI LAUNCHD: child started; PID1 remains diagnostic\n"
+launchd_parent_started_end:
+launchd_fork_error:
+    .ascii "MIAMI LAUNCHD: fork failed\n"
+launchd_fork_error_end:
+launchd_child_chroot:
+    .ascii "MIAMI LAUNCHD: entering remote read-only root\n"
+launchd_child_chroot_end:
+launchd_child_exec:
+    .ascii "MIAMI LAUNCHD: execve /sbin/launchd\n"
+launchd_child_exec_end:
+launchd_child_error:
+    .ascii "MIAMI LAUNCHD: child syscall failed errno=0x"
+launchd_child_error_end:
+launchd_child_status:
+    .ascii "MIAMI LAUNCHD: child wait status=0x"
+launchd_child_status_end:
 mount_hex_digits:
     .ascii "0123456789abcdef"
 mount_ok:

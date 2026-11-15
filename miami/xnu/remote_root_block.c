@@ -169,9 +169,11 @@ miami_remote_block_start(const struct miami_root_client *client)
 	if (rb.major < 0) return ENXIO;
 	int mount_test = 0;
 	int real_test = 0;
+	int exec_test = 0;
 	PE_parse_boot_argn("rootmount", &mount_test, sizeof(mount_test));
 	PE_parse_boot_argn("rootreal", &real_test, sizeof(real_test));
-	const char *name = real_test ? "miamiusbios0" :
+	PE_parse_boot_argn("rootexec", &exec_test, sizeof(exec_test));
+	const char *name = real_test && exec_test ? "miamiusbexec0" : real_test ? "miamiusbios0" :
 	    (mount_test ? "miamiusbmount0" : "miamiusbroot0");
 	void *node = devfs_make_node(makedev(rb.major, 0), DEVFS_BLOCK,
 	    UID_ROOT, GID_OPERATOR, 0440, "%s", name);
