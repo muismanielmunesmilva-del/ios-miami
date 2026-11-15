@@ -110,6 +110,7 @@ static const struct bdevsw root_block_bdevsw = {
 static void
 root_block_worker(void *arg __unused, wait_result_t wr __unused)
 {
+	bool large_read_reported = false;
 	for (;;) {
 		buf_t bp = NULL;
 		lck_spin_lock(&root_block_lock);
@@ -135,6 +136,10 @@ root_block_worker(void *arg __unused, wait_result_t wr __unused)
 		    (uint8_t *)addr, buf_count(bp)) != 0) error = EIO;
 		if (error) printf("MIAMI ROOT BLOCK: read failed sector=%lld bytes=%u error=%d\n",
 		    (long long)buf_blkno(bp), buf_count(bp), error);
+		if (!large_read_reported && buf_count(bp) > 65536u) {
+			printf("MIAMI ROOT BLOCK: large read bytes=%u error=%d\n", buf_count(bp), error);
+			large_read_reported = true;
+		}
 		if (mapped) (void)buf_unmap(bp);
 		if (!error) buf_setresid(bp, 0);
 		root_block_finish(bp, error);
