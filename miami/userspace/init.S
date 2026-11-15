@@ -198,6 +198,10 @@ mount_device_found:
     adr x9, real_device
 mount_arg_ready:
     str x9, [sp]               /* hfs_mount_args.fspec */
+    adr x1, mount_begin
+    adr x2, mount_begin_end
+    sub x2, x2, x1
+    bl write_all
     adr x0, mount_type
     adr x1, mount_path
     mov x2, #1                 /* MNT_RDONLY */
@@ -330,6 +334,10 @@ real_root_probe:
     svc #0x80
     b.cs real_cache_failed
     mov x25, x0
+    adr x1, real_cache_begin
+    adr x2, real_cache_begin_end
+    sub x2, x2, x1
+    bl write_all
     sub sp, sp, #16
     mov x0, x25
     mov x1, sp
@@ -737,6 +745,9 @@ mount_hex_digits:
 mount_ok:
     .ascii "MIAMI ROOT MOUNT: HFS mounted read-only\n"
 mount_ok_end:
+mount_begin:
+    .ascii "MIAMI ROOT MOUNT: starting read-only mount\n"
+mount_begin_end:
 mount_marker_ok:
     .ascii "MIAMI ROOT MOUNT: remote marker verified\n"
 mount_marker_ok_end:
@@ -761,6 +772,9 @@ real_files_error_end:
 real_cache_ok:
     .ascii "MIAMI IOS ROOT: dyld cache header verified\n"
 real_cache_ok_end:
+real_cache_begin:
+    .ascii "MIAMI IOS ROOT: reading dyld cache header\n"
+real_cache_begin_end:
 real_cache_error:
     .ascii "MIAMI IOS ROOT: dyld cache read failed\n"
 real_cache_error_end:
