@@ -25,6 +25,7 @@ _start:
     mov sp, x9
     mov x24, #0               /* optional read-only mount has not run */
     mov x26, #0               /* synthetic root unless real-root node exists */
+    mov x27, #0               /* real-root read-only probe not yet complete */
     adr x0, console_path
     mov x1, #2
     mov x2, #0
@@ -370,6 +371,7 @@ real_root_probe:
     b.cc mount_write_unexpected
     cmp x0, #30
     b.ne mount_write_failed
+    mov x27, #1
     adr x1, mount_ro_ok
     adr x2, mount_ro_ok_end
     sub x2, x2, x1
@@ -685,6 +687,11 @@ tick:
     sub x2, x2, x1
     bl write_all
     bl mount_probe
+    cbz x27, tick
+    adr x1, real_summary_ok
+    adr x2, real_summary_ok_end
+    sub x2, x2, x1
+    bl write_all
     b tick
 wrong_pid:
     adr x1, error_pid
@@ -775,6 +782,9 @@ real_cache_ok_end:
 real_cache_begin:
     .ascii "MIAMI IOS ROOT: reading dyld cache header\n"
 real_cache_begin_end:
+real_summary_ok:
+    .ascii "MIAMI IOS ROOT: mount, Mach-O, cache and read-only verified\n"
+real_summary_ok_end:
 real_cache_error:
     .ascii "MIAMI IOS ROOT: dyld cache read failed\n"
 real_cache_error_end:
