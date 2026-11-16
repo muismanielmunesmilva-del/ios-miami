@@ -464,6 +464,28 @@ launchd_fork_failed:
     ldp x29, x30, [sp], #16
     ret
 launchd_pid1:
+    /* A devfs mount is a new view of registered devices, not a write to HFS.
+     * The remote block device itself rejects write opens and writes. */
+    adr x0, devfs_type
+    adr x1, remote_dev_path
+    mov x2, #1                 /* MNT_RDONLY */
+    mov x3, #0
+    mov x16, #SYS_mount
+    svc #0x80
+    b.cs launchd_child_fail
+    adr x0, remote_null_path
+    mov x1, #2                 /* O_RDWR: launchd needs usable stdin */
+    mov x2, #0
+    mov x16, #SYS_open
+    svc #0x80
+    b.cs launchd_child_fail
+    mov x16, #SYS_close
+    svc #0x80
+    b.cs launchd_child_fail
+    adr x1, devfs_ok
+    adr x2, devfs_ok_end
+    sub x2, x2, x1
+    bl write_all
     adr x1, launchd_pid1_message
     adr x2, launchd_pid1_message_end
     sub x2, x2, x1
@@ -941,6 +963,15 @@ real_cache_magic:
     .ascii "dyld_v1   arm64\0"
 launchd_root_path:
     .asciz "/"
+devfs_type:
+    .asciz "devfs"
+remote_dev_path:
+    .asciz "/etc/dev"
+remote_null_path:
+    .asciz "/etc/dev/null"
+devfs_ok:
+    .ascii "MIAMI LAUNCHD: read-only devfs mounted, /dev/null opened\n"
+devfs_ok_end:
 launchd_exec_path:
     .asciz "/sbin/launchd"
 launchd_parent_started:

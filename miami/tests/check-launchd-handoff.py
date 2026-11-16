@@ -50,6 +50,18 @@ def run(entry, scenario):
                 u.reg_write(UC_ARM64_REG_X0, 11); u.reg_write(UC_ARM64_REG_NZCV, 0x20000000)
         elif n == 4:
             output.extend(bytes(u.mem_read(x1, x2))); u.reg_write(UC_ARM64_REG_X0, x2)
+        elif n == 167:
+            assert cstring(u, x0) == 'devfs' and cstring(u, x1) == '/etc/dev' and x2 == 1
+            if scenario == 'pid1_devfs_fail':
+                u.reg_write(UC_ARM64_REG_X0, 13); u.reg_write(UC_ARM64_REG_NZCV, 0x20000000)
+            else: u.reg_write(UC_ARM64_REG_X0, 0)
+        elif n == 5:
+            assert cstring(u, x0) == '/etc/dev/null' and x1 == 2
+            if scenario == 'pid1_null_fail':
+                u.reg_write(UC_ARM64_REG_X0, 2); u.reg_write(UC_ARM64_REG_NZCV, 0x20000000)
+            else: u.reg_write(UC_ARM64_REG_X0, 10)
+        elif n == 6:
+            assert x0 == 10; u.reg_write(UC_ARM64_REG_X0, 0)
         elif n == 90:
             assert x0 == 3 and x1 in (1, 2); u.reg_write(UC_ARM64_REG_X0, x1)
         elif n == 61:
@@ -96,9 +108,13 @@ assert calls == [7, 4, 4] and u.reg_read(UC_ARM64_REG_X28) == 0 and '00007e00' i
 print('launchd child fork, root, exec, error and wait control flow verified in emulator')
 
 u, calls, out = run('launchd_pid1', 'pid1_ok')
-assert calls == [4, 90, 90, 4, 61, 12, 4, 59] and 'replacing diagnostic PID1' in out
+assert calls == [167, 5, 6, 4, 4, 90, 90, 4, 61, 12, 4, 59] and 'replacing diagnostic PID1' in out
+u, calls, out = run('launchd_pid1', 'pid1_devfs_fail')
+assert calls == [167, 4, 4] and 'errno=0x0d' in out and 1 not in calls
+u, calls, out = run('launchd_pid1', 'pid1_null_fail')
+assert calls == [167, 5, 4, 4] and 'errno=0x02' in out and 1 not in calls
 u, calls, out = run('launchd_pid1', 'pid1_chroot_fail')
-assert calls == [4, 90, 90, 4, 61, 4, 4] and 'errno=0x0d' in out and 1 not in calls
+assert calls == [167, 5, 6, 4, 4, 90, 90, 4, 61, 4, 4] and 'errno=0x0d' in out and 1 not in calls
 u, calls, out = run('launchd_pid1', 'pid1_exec_fail')
-assert calls == [4, 90, 90, 4, 61, 12, 4, 59, 4, 4] and 'errno=0x02' in out and 1 not in calls
+assert calls == [167, 5, 6, 4, 4, 90, 90, 4, 61, 12, 4, 59, 4, 4] and 'errno=0x02' in out and 1 not in calls
 print('PID1 direct exec and failure retention verified in emulator')
