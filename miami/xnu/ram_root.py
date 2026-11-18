@@ -167,6 +167,49 @@ miami_amfi_adjust_without_monitor(void *os_entitlements,
     if text.count(old_hook) != 1:
         raise ValueError('AMFI vnode_check_signature hook anchor changed')
     text = text.replace(old_hook, new_hook)
+    # Test 0056: the real launchd panicked with "unexpected exec of
+    # non-platform binary: .../SpringBoard". The iOS root of the
+    # rootreal=1 rootpid1=1 bring-up is the read-only HFS+ image mounted from
+    # /dev/miamiusbpid10 and entered with chroot, so it is not MNT_ROOTFS and
+    # the 0035 rule never marked its binaries. Treat that one read-only mount
+    # like the root filesystem (still a stand-in for the static trust cache).
+    old_platform = '\tif (mp != NULL && (vfs_flags(mp) & MNT_ROOTFS)) {'
+    new_platform = '\tif (mp != NULL && ((vfs_flags(mp) & MNT_ROOTFS) || miami_amfi_remote_root(mp))) {'
+    if text.count(old_platform) != 1:
+        raise ValueError('AMFI platform-binary anchor changed')
+    text = text.replace(old_platform, new_platform)
+    # Insert the helper above the hook's comment block (patch 0036 wording).
+    hook_decl = '/*\n * The signature reached this hook validated'
+    if text.count(hook_decl) != 1:
+        raise ValueError('AMFI vnode_check_signature comment anchor changed')
+    remote_root = '''/* Read-only USB remote root of the rootpid1 bring-up (see ram_root.py). */
+static int
+miami_amfi_remote_root(mount_t mp)
+{
+\tstatic const char device[] = "/dev/miamiusbpid10";
+\tstatic int logged;
+\tstruct vfsstatfs *sfs;
+\tif (!vfs_isrdonly(mp)) {
+\t\treturn 0;
+\t}
+\tsfs = vfs_statfs(mp);
+\tif (sfs == NULL) {
+\t\treturn 0;
+\t}
+\tfor (unsigned int i = 0; i < sizeof(device); i++) {
+\t\tif (sfs->f_mntfromname[i] != device[i]) {
+\t\t\treturn 0;
+\t\t}
+\t}
+\tif (!logged) {
+\t\tlogged = 1;
+\t\tprintf("MIAMI AMFI: platform binaries from read-only %s\\n", device);
+\t}
+\treturn 1;
+}
+
+'''
+    text = text.replace(hook_decl, remote_root + hook_decl)
     provider.write_bytes(text.encode('utf-8'))
     aks_cpp = tree / 'iokit/Kernel/arm/SweetKeyStore.cpp'
     aks_text = aks_cpp.read_text()

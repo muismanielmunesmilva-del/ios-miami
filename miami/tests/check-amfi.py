@@ -63,8 +63,11 @@ enum { EPERM = 1, ENOENT = 2, EBADEXEC = 85 };
 #define OSENTITLEMENTS_INTERFACE_VERSION 1U
 
 typedef struct { uint32_t magic; uint32_t length; char data[]; } CS_GenericBlob;
-struct vnode { uint32_t mnt_flags; };
+struct vfsstatfs { char f_mntfromname[1024]; };
+struct vnode { uint32_t mnt_flags; int rdonly; struct vfsstatfs st; };
 typedef struct vnode *mount_t;
+static int vfs_isrdonly(mount_t mp) { return mp->rdonly; }
+static struct vfsstatfs *vfs_statfs(mount_t mp) { return &mp->st; }
 struct label;
 struct cs_blob {
     void *csb_ro_addr;
@@ -183,6 +186,21 @@ int main(void) {
     flags = 0;
     assert(miami_amfi_vnode_check_signature(&nonroot_vp, NULL, 0, &b, &flags, NULL, 0, 0, NULL, NULL) == 0);
     assert(flags == CS_SIGNED);
+
+    /* 2b. Read-only USB remote root (rootpid1 chroot) is platform; rw or other devices are not. */
+    struct vnode remote_vp = { .mnt_flags = 0, .rdonly = 1, .st = { "/dev/miamiusbpid10" } };
+    flags = 0;
+    assert(miami_amfi_vnode_check_signature(&remote_vp, NULL, 0, &b, &flags, NULL, 0, 0, NULL, NULL) == 0);
+    assert(flags == (CS_SIGNED | CS_PLATFORM_BINARY));
+    struct vnode remote_rw = { .mnt_flags = 0, .rdonly = 0, .st = { "/dev/miamiusbpid10" } };
+    struct vnode other_ro = { .mnt_flags = 0, .rdonly = 1, .st = { "/dev/miamiusbpid100" } };
+    struct vnode prefix_ro = { .mnt_flags = 0, .rdonly = 1, .st = { "/dev/miamiusbpid1" } };
+    struct vnode *not_platform[] = { &remote_rw, &other_ro, &prefix_ro };
+    for (unsigned i = 0; i < 3; i++) {
+        flags = 0;
+        assert(miami_amfi_vnode_check_signature(not_platform[i], NULL, 0, &b, &flags, NULL, 0, 0, NULL, NULL) == 0);
+        assert(flags == CS_SIGNED);
+    }
 
     /* 3. Valid XML entitlements are parsed, attached, and queryable via proc & blob. */
     CS_GenericBlob valid_xml = { .magic = 0x7171defaU, .length = 64 };
