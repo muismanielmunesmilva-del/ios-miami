@@ -39,7 +39,23 @@ def node(name, props=(), children=()):
     return result
 
 
-def build(seed=None, include_ufs=False, allow_unrestricted_fs=False):
+# Opt-in identity of the iPhone X (D22AP, iPhone10,3) whose iOS 16.7.16 20H392
+# userland is staged on the remote root. Same layout as ios-sweet patch 0059:
+# compatible[0] -> hw.model/hw.target, model -> hw.machine/hw.product, and
+# target-type -> hw.targettype (IOPMrootDomain sysctl_targettype). The real
+# launchd logs "sysctl hw.targettype was not set" and skipped its boot tasks
+# (launchd_cache_loader included) without it. 'motorola,miami' stays in the
+# compatible list: the platform expert matches it with IONameMatch.
+IPHONE_IDENTITY = {
+    'compatible': ('D22AP', 'iPhone10,3'),
+    'model': 'iPhone10,3',
+    'target-type': 'D22',
+    'target-sub-type': 'D22AP',
+    'manufacturer': 'Apple Inc.',
+}
+
+
+def build(seed=None, include_ufs=False, allow_unrestricted_fs=False, iphone_identity=False):
     seed = os.urandom(64) if seed is None else seed
     if len(seed) != 64:
         raise ValueError('Expected a fresh 64-byte kernel random seed')
@@ -82,8 +98,14 @@ def build(seed=None, include_ufs=False, allow_unrestricted_fs=False):
     if include_ufs:
         children.append(node('miami-ufs', [('compatible', cstr('qcom,ufshc')),
                              ('reg', u64(UFS_BASE, UFS_SIZE))]))
-    return node('device-tree', [('compatible', cstr('motorola,miami') + cstr('qcom,sm6375') + cstr('AppleARM')),
-                ('model', cstr('Motorola Edge 30 Neo')), ('#address-cells', u32(2)), ('#size-cells', u32(2))],
+    compatible = cstr('motorola,miami') + cstr('qcom,sm6375') + cstr('AppleARM')
+    identity = [('model', cstr('Motorola Edge 30 Neo'))]
+    if iphone_identity:
+        compatible = b''.join(cstr(c) for c in IPHONE_IDENTITY['compatible']) + compatible
+        identity = [(key, cstr(IPHONE_IDENTITY[key]))
+                    for key in ('model', 'target-type', 'target-sub-type', 'manufacturer')]
+    return node('device-tree', [('compatible', compatible)] + identity +
+                [('#address-cells', u32(2)), ('#size-cells', u32(2))],
                 children)
 
 

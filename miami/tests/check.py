@@ -228,6 +228,15 @@ def check(dtc, live_fdt=None):
         chosen = next(c for c in roundtrip.children if c.name == 'chosen')
         asmb = next(c for c in chosen.children if c.name == 'asmb')
         assert asmb.prop('lp-sip0') == struct.pack('<Q', 2)
+        assert root.prop('target-type') is None, 'identity must stay opt-in'
+        assert root.prop('model') == b'Motorola Edge 30 Neo\0'
+        identity, end = adt.parse(adt.serialize(mkadt.build(seed=bytes(range(64)), iphone_identity=True)))
+        compat = identity.prop('compatible').split(b'\0')[:-1]
+        assert compat == [b'D22AP', b'iPhone10,3', b'motorola,miami', b'qcom,sm6375', b'AppleARM']
+        assert identity.prop('model') == b'iPhone10,3\0'
+        assert identity.prop('target-type') == b'D22\0'
+        assert identity.prop('target-sub-type') == b'D22AP\0'
+        assert identity.prop('manufacturer') == b'Apple Inc.\0'
 
         def compile_dts(text, name):
             source, output = temp / (name + '.dts'), temp / (name + '.dtb')

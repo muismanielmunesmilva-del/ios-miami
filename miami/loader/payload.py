@@ -25,7 +25,7 @@ def validate_ramdisk(data):
     return validate_hfs(data)
 
 
-def package(kernel, output, ramdisk=None, allow_unrestricted_fs=False):
+def package(kernel, output, ramdisk=None, allow_unrestricted_fs=False, iphone_identity=False):
     data = kernel.read_bytes()
     if len(data) < 32 or len(data) > 80 * 1024 * 1024:
         raise ValueError('Unexpected kernel size')
@@ -66,7 +66,8 @@ def package(kernel, output, ramdisk=None, allow_unrestricted_fs=False):
     command_line = CMDLINE + (' rd=md0' if ramdisk else '')
     output.parent.mkdir(parents=True, exist_ok=True)
     tree = output.with_suffix('.adt')
-    tree.write_bytes(adt.serialize(mkadt.build(allow_unrestricted_fs=allow_unrestricted_fs)))
+    tree.write_bytes(adt.serialize(mkadt.build(allow_unrestricted_fs=allow_unrestricted_fs,
+                                               iphone_identity=iphone_identity)))
     blob, info = mkpayload.build(str(kernel), str(tree), command_line, str(ramdisk) if ramdisk else None)
     blob = b'MIAMIXNU' + blob[8:]
     adt_offset, adt_size = struct.unpack_from('<2Q', blob, 0x20)
@@ -75,7 +76,8 @@ def package(kernel, output, ramdisk=None, allow_unrestricted_fs=False):
     metadata = {'kernel_sha256': hashlib.sha256(data).hexdigest(),
                 'payload_sha256': hashlib.sha256(blob).hexdigest(), 'bytes': len(blob),
                 'machine': 'MIAMI', 'cpus': 1, 'cmdline': command_line, 'layout': info,
-                'ram_root': root_info, 'allow_unrestricted_fs': allow_unrestricted_fs}
+                'ram_root': root_info, 'allow_unrestricted_fs': allow_unrestricted_fs,
+                'iphone_identity': iphone_identity}
     output.with_suffix('.json').write_text(json.dumps(metadata, indent=2) + '\n')
     print(f'MIAMI payload: {len(blob)} bytes; ' + ('bounded RAM-only PID1 root' if ramdisk else 'no root filesystem') + '; no storage driver')
 
@@ -87,5 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--ramdisk', type=Path, help='verified small static MIAMI PID1 executable for mockfs')
     parser.add_argument('--allow-unrestricted-fs', action='store_true',
                         help='experimental CSR_ALLOW_UNRESTRICTED_FS; does not establish Apple trust')
+    parser.add_argument('--iphone-identity', action='store_true',
+                        help='ADT identity D22AP/iPhone10,3, target-type D22 (matches the staged 20H392 userland)')
     args = parser.parse_args()
-    package(args.kernel, args.output, args.ramdisk, args.allow_unrestricted_fs)
+    package(args.kernel, args.output, args.ramdisk, args.allow_unrestricted_fs, args.iphone_identity)
