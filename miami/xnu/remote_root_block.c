@@ -17,7 +17,7 @@
 #include "remote_root_bounds.h"
 
 #define ROOT_BLOCK_SECTOR 512u
-#define ROOT_BLOCK_QUEUE 16u
+#define ROOT_BLOCK_QUEUE 64u
 
 static LCK_GRP_DECLARE(root_block_group, "miami_root_block");
 static LCK_SPIN_DECLARE(root_block_lock, &root_block_group);
@@ -69,15 +69,30 @@ root_block_strategy(buf_t bp)
 		return;
 	}
 	if (count == 0) { root_block_finish(bp, 0); return; }
+	/*
+	 * A full queue must not fail the I/O: page-ins (dyld shared cache, many
+	 * daemons at once) would see EBUSY as KERN_MEMORY_ERROR -> SIGBUS. The
+	 * transport is ~10 KB/s, so the queue is often full. Wait for a slot.
+	 */
+	static bool full_reported;
 	lck_spin_lock(&root_block_lock);
-	if (rb.count == ROOT_BLOCK_QUEUE) {
+	while (rb.count == ROOT_BLOCK_QUEUE) {
+		if (!full_reported) {
+			full_reported = true;
+			lck_spin_unlock(&root_block_lock);
+			printf("MIAMI ROOT BLOCK: queue full (%u), waiting instead of EBUSY\n", ROOT_BLOCK_QUEUE);
+			lck_spin_lock(&root_block_lock);
+			continue;
+		}
+		assert_wait(&rb.queue, THREAD_UNINT);
 		lck_spin_unlock(&root_block_lock);
-		root_block_finish(bp, EBUSY);
-		return;
+		thread_block(THREAD_CONTINUE_NULL);
+		lck_spin_lock(&root_block_lock);
 	}
 	rb.queue[(rb.head + rb.count) % ROOT_BLOCK_QUEUE] = bp;
 	rb.count++;
 	lck_spin_unlock(&root_block_lock);
+	thread_wakeup(&rb.sleep_chan);
 }
 
 static int
@@ -120,6 +135,7 @@ root_block_worker(void *arg __unused, wait_result_t wr __unused)
 			rb.count--;
 		}
 		lck_spin_unlock(&root_block_lock);
+		if (bp != NULL) thread_wakeup(&rb.queue);
 		if (bp == NULL) {
 			uint64_t deadline;
 			clock_interval_to_deadline(10, NSEC_PER_MSEC, &deadline);
