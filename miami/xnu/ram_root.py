@@ -15,6 +15,10 @@ POST_HFS_PATCHES = ('0035-sweet-amfi-entitlements-platform-binaries.patch',
                     '0037-sweet-config-bindfs.patch',
                     '0038-sweet-applekeystore.patch',
                     '0039-sweet-coredump-default-off.patch',
+                    # watchdogd is a _PanicOnCrash launchd job: it dies without an
+                    # IOWatchdog service (0040) or an IOPMUPrimary=1 service (0045).
+                    '0040-sweet-iowatchdog.patch',
+                    '0045-sweet-iowatchdog-pmu-primary.patch',
                     '0042-sweet-short-exec-log.patch',
                     '0043-sweet-console-crash-log.patch',
                     '0044-sweet-crash-log-reason.patch',
