@@ -31,6 +31,7 @@ static struct {
 } rb;
 
 int miami_remote_block_start(const struct miami_root_client *client);
+int miami_var_block_start(void);
 
 static void
 root_block_finish(buf_t bp, int error)
@@ -212,6 +213,8 @@ miami_remote_block_start(const struct miami_root_client *client)
 	thread_deallocate(worker);
 	rb.ready = true;
 	printf("MIAMI ROOT BLOCK: read-only %s registered\n", name);
+	/* rootpid1: init mounts a writable RAM /private/var on the chrooted root. */
+	if (real_test && pid1_test) (void)miami_var_block_start();
 	if (kernel_thread_start(root_block_test, NULL, &test) == KERN_SUCCESS) thread_deallocate(test);
 	else printf("MIAMI ROOT BLOCK: could not start strategy test\n");
 	return 0;

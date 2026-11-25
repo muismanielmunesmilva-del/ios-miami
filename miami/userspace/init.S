@@ -486,10 +486,61 @@ launchd_pid1:
     adr x2, devfs_ok_end
     sub x2, x2, x1
     bl write_all
+    bl var_mount
     adr x1, launchd_pid1_message
     adr x2, launchd_pid1_message_end
     sub x2, x2, x1
     bl write_all
+    b launchd_child
+/* Writable RAM /private/var: the kernel's /dev/miamivar0 (xnu/var_ram_block.c),
+ * mounted read-write on the remote root before the chroot. Kernel memory only;
+ * the remote root stays read-only. A failure is reported and boot continues. */
+var_mount:
+    stp x25, x30, [sp, #-16]!
+    sub sp, sp, #64
+    stp xzr, xzr, [sp]
+    stp xzr, xzr, [sp, #16]
+    stp xzr, xzr, [sp, #32]
+    stp xzr, xzr, [sp, #48]
+    adr x9, var_device
+    str x9, [sp]               /* hfs_mount_args.fspec */
+    adr x0, mount_type
+    adr x1, var_path
+    mov x2, #0x18              /* MNT_NOSUID | MNT_NODEV, read-write */
+    mov x3, sp
+    mov x16, #SYS_mount
+    svc #0x80
+    add sp, sp, #64
+    b.cs var_mount_failed
+    adr x1, var_ok
+    adr x2, var_ok_end
+    sub x2, x2, x1
+    bl write_all
+    b var_mount_return
+var_mount_failed:
+    mov x25, x0
+    adr x1, var_error
+    adr x2, var_error_end
+    sub x2, x2, x1
+    bl write_all
+    sub sp, sp, #16
+    adr x9, mount_hex_digits
+    lsr x10, x25, #4
+    and x10, x10, #15
+    ldrb w11, [x9, x10]
+    strb w11, [sp]
+    and x10, x25, #15
+    ldrb w11, [x9, x10]
+    strb w11, [sp, #1]
+    mov w11, #10
+    strb w11, [sp, #2]
+    mov x1, sp
+    mov x2, #3
+    bl write_all
+    add sp, sp, #16
+var_mount_return:
+    ldp x25, x30, [sp], #16
+    ret
 launchd_child:
     /* Inherit the already-open diagnostic console across chroot and exec. */
     mov x0, x19
@@ -972,6 +1023,16 @@ remote_null_path:
 devfs_ok:
     .ascii "MIAMI LAUNCHD: read-only devfs mounted, /dev/null opened\n"
 devfs_ok_end:
+var_device:
+    .asciz "/dev/miamivar0"
+var_path:
+    .asciz "/etc/private/var"
+var_ok:
+    .ascii "MIAMI VAR: writable RAM /private/var mounted\n"
+var_ok_end:
+var_error:
+    .ascii "MIAMI VAR: /private/var mount failed errno 0x"
+var_error_end:
 launchd_exec_path:
     .asciz "/sbin/launchd"
 launchd_parent_started:

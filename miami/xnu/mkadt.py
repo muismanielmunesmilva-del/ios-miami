@@ -87,7 +87,11 @@ def build(seed=None, include_ufs=False, allow_unrestricted_fs=False, iphone_iden
         ('canvas-width', u32(1080)),
         ('canvas-height', u32(2400)),
     ])
-    children = [chosen, node('defaults'), node('cpus', [('#address-cells', u32(1)), ('#size-cells', u32(0))], [cpu]),
+    # No effaceable storage (as ios-sweet tools/mkadt.py): keybagd then reads
+    # /private/var/keybags/systembag.kb as a plain plist instead of failing
+    # fatally ("FATAL KEYBAG ERROR" -> reboot). Only on the opt-in D22 identity.
+    defaults = node('defaults', [('no-effaceable-storage', u32(1))] if iphone_identity else [])
+    children = [chosen, defaults, node('cpus', [('#address-cells', u32(1)), ('#size-cells', u32(0))], [cpu]),
                  node('arm-io', [('device_type', cstr('miami-io')),
                       ('compatible', cstr('miami-io') + cstr('arm-io')),
                       ('#address-cells', u32(2)), ('#size-cells', u32(2)),

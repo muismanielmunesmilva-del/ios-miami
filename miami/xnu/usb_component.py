@@ -34,13 +34,18 @@ def stage(tree):
             raise ValueError('Could not find remote root client entry')
         files_content = files_content.replace(client_entry, client_entry + block_entry, 1)
         files_bsd.write_text(files_content)
+    var_entry = 'bsd/dev/var_ram_block.c\t\tstandard\n'
+    if var_entry not in files_content:
+        files_content = files_content.replace(block_entry, block_entry + var_entry, 1)
+        files_bsd.write_text(files_content)
 
     # 2. Stage clean driver source at bsd/dev/miami_usb.c
     source_c = (Path(__file__).resolve().parent / 'miami_usb.c').read_text()
     dest_c = tree / 'bsd/dev/miami_usb.c'
     dest_c.write_text(source_c)
     for name in ('remote_root_protocol.c', 'remote_root_protocol.h',
-                 'remote_root_client.c', 'remote_root_client.h', 'remote_root_block.c', 'remote_root_bounds.h'):
+                 'remote_root_client.c', 'remote_root_client.h', 'remote_root_block.c', 'remote_root_bounds.h',
+                 'var_ram_block.c', 'var_template.h'):
         (tree / 'bsd/dev' / name).write_bytes(
             (Path(__file__).resolve().parent / name).read_bytes()
         )
