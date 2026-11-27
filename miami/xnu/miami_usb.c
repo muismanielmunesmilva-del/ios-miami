@@ -808,13 +808,18 @@ static int
 ud_root_receive(void *context, uint8_t *packet, size_t capacity, size_t *length)
 {
 	socket_t so = (socket_t)context;
-	for (unsigned poll = 0; poll < 20; poll++) {
+	/*
+	 * The reply arrives ~1-2 ms after the request (the USB event thread polls
+	 * every 1 ms). Polling every 100 ms capped the root at ~10 reads/s; poll
+	 * every 1 ms instead, with the same ~2 s bound per receive.
+	 */
+	for (unsigned poll = 0; poll < 2000; poll++) {
 		struct iovec iov = { .iov_base = packet, .iov_len = capacity };
 		struct msghdr msg = { .msg_iov = &iov, .msg_iovlen = 1 };
 		errno_t error = sock_receive(so, &msg, MSG_DONTWAIT, length);
 		if (error == 0) return (msg.msg_flags & MSG_TRUNC) ? -1 : 1;
 		if (error != EWOULDBLOCK) return -1;
-		ud_sleep_ms(100);
+		ud_sleep_ms(1);
 	}
 	return 0;
 }
